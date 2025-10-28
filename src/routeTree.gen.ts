@@ -13,10 +13,18 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as LogoutRouteImport } from './routes/logout'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedPostsRouteImport } from './routes/_authed/posts'
+import { Route as AuthedTrainerOverviewIndexRouteImport } from './routes/_authed/trainer-overview/index'
+import { Route as AuthedScheduleIndexRouteImport } from './routes/_authed/schedule/index'
+import { Route as AuthedReligiousActivityIndexRouteImport } from './routes/_authed/religious-activity/index'
 import { Route as AuthedPostsIndexRouteImport } from './routes/_authed/posts.index'
+import { Route as AuthedPhysicalTrainingIndexRouteImport } from './routes/_authed/physical-training/index'
+import { Route as AuthedEventsIndexRouteImport } from './routes/_authed/events/index'
+import { Route as AuthedDormitoryIndexRouteImport } from './routes/_authed/dormitory/index'
 import { Route as AuthedPostsPostIdRouteImport } from './routes/_authed/posts.$postId'
+import { Route as AuthedEventsCreateRouteImport } from './routes/_authed/events/create'
+import { Route as AuthedEventsIdRouteImport } from './routes/_authed/events/$id'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -37,81 +45,177 @@ const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const AuthedIndexRoute = AuthedIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPostsRoute = AuthedPostsRouteImport.update({
   id: '/posts',
   path: '/posts',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTrainerOverviewIndexRoute =
+  AuthedTrainerOverviewIndexRouteImport.update({
+    id: '/trainer-overview/',
+    path: '/trainer-overview/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedScheduleIndexRoute = AuthedScheduleIndexRouteImport.update({
+  id: '/schedule/',
+  path: '/schedule/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedReligiousActivityIndexRoute =
+  AuthedReligiousActivityIndexRouteImport.update({
+    id: '/religious-activity/',
+    path: '/religious-activity/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedPostsIndexRoute = AuthedPostsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthedPostsRoute,
+} as any)
+const AuthedPhysicalTrainingIndexRoute =
+  AuthedPhysicalTrainingIndexRouteImport.update({
+    id: '/physical-training/',
+    path: '/physical-training/',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedEventsIndexRoute = AuthedEventsIndexRouteImport.update({
+  id: '/events/',
+  path: '/events/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedDormitoryIndexRoute = AuthedDormitoryIndexRouteImport.update({
+  id: '/dormitory/',
+  path: '/dormitory/',
+  getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedPostsPostIdRoute = AuthedPostsPostIdRouteImport.update({
   id: '/$postId',
   path: '/$postId',
   getParentRoute: () => AuthedPostsRoute,
 } as any)
+const AuthedEventsCreateRoute = AuthedEventsCreateRouteImport.update({
+  id: '/events/create',
+  path: '/events/create',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedEventsIdRoute = AuthedEventsIdRouteImport.update({
+  id: '/events/$id',
+  path: '/events/$id',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/signup': typeof SignupRoute
   '/posts': typeof AuthedPostsRouteWithChildren
+  '/': typeof AuthedIndexRoute
+  '/events/$id': typeof AuthedEventsIdRoute
+  '/events/create': typeof AuthedEventsCreateRoute
   '/posts/$postId': typeof AuthedPostsPostIdRoute
+  '/dormitory': typeof AuthedDormitoryIndexRoute
+  '/events': typeof AuthedEventsIndexRoute
+  '/physical-training': typeof AuthedPhysicalTrainingIndexRoute
   '/posts/': typeof AuthedPostsIndexRoute
+  '/religious-activity': typeof AuthedReligiousActivityIndexRoute
+  '/schedule': typeof AuthedScheduleIndexRoute
+  '/trainer-overview': typeof AuthedTrainerOverviewIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/signup': typeof SignupRoute
+  '/': typeof AuthedIndexRoute
+  '/events/$id': typeof AuthedEventsIdRoute
+  '/events/create': typeof AuthedEventsCreateRoute
   '/posts/$postId': typeof AuthedPostsPostIdRoute
+  '/dormitory': typeof AuthedDormitoryIndexRoute
+  '/events': typeof AuthedEventsIndexRoute
+  '/physical-training': typeof AuthedPhysicalTrainingIndexRoute
   '/posts': typeof AuthedPostsIndexRoute
+  '/religious-activity': typeof AuthedReligiousActivityIndexRoute
+  '/schedule': typeof AuthedScheduleIndexRoute
+  '/trainer-overview': typeof AuthedTrainerOverviewIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/signup': typeof SignupRoute
   '/_authed/posts': typeof AuthedPostsRouteWithChildren
+  '/_authed/': typeof AuthedIndexRoute
+  '/_authed/events/$id': typeof AuthedEventsIdRoute
+  '/_authed/events/create': typeof AuthedEventsCreateRoute
   '/_authed/posts/$postId': typeof AuthedPostsPostIdRoute
+  '/_authed/dormitory/': typeof AuthedDormitoryIndexRoute
+  '/_authed/events/': typeof AuthedEventsIndexRoute
+  '/_authed/physical-training/': typeof AuthedPhysicalTrainingIndexRoute
   '/_authed/posts/': typeof AuthedPostsIndexRoute
+  '/_authed/religious-activity/': typeof AuthedReligiousActivityIndexRoute
+  '/_authed/schedule/': typeof AuthedScheduleIndexRoute
+  '/_authed/trainer-overview/': typeof AuthedTrainerOverviewIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/login'
     | '/logout'
     | '/signup'
     | '/posts'
+    | '/'
+    | '/events/$id'
+    | '/events/create'
     | '/posts/$postId'
+    | '/dormitory'
+    | '/events'
+    | '/physical-training'
     | '/posts/'
+    | '/religious-activity'
+    | '/schedule'
+    | '/trainer-overview'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/logout' | '/signup' | '/posts/$postId' | '/posts'
+  to:
+    | '/login'
+    | '/logout'
+    | '/signup'
+    | '/'
+    | '/events/$id'
+    | '/events/create'
+    | '/posts/$postId'
+    | '/dormitory'
+    | '/events'
+    | '/physical-training'
+    | '/posts'
+    | '/religious-activity'
+    | '/schedule'
+    | '/trainer-overview'
   id:
     | '__root__'
-    | '/'
     | '/_authed'
     | '/login'
     | '/logout'
     | '/signup'
     | '/_authed/posts'
+    | '/_authed/'
+    | '/_authed/events/$id'
+    | '/_authed/events/create'
     | '/_authed/posts/$postId'
+    | '/_authed/dormitory/'
+    | '/_authed/events/'
+    | '/_authed/physical-training/'
     | '/_authed/posts/'
+    | '/_authed/religious-activity/'
+    | '/_authed/schedule/'
+    | '/_authed/trainer-overview/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
   LogoutRoute: typeof LogoutRoute
@@ -148,18 +252,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_authed/': {
+      id: '/_authed/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AuthedIndexRouteImport
+      parentRoute: typeof AuthedRoute
     }
     '/_authed/posts': {
       id: '/_authed/posts'
       path: '/posts'
       fullPath: '/posts'
       preLoaderRoute: typeof AuthedPostsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/trainer-overview/': {
+      id: '/_authed/trainer-overview/'
+      path: '/trainer-overview'
+      fullPath: '/trainer-overview'
+      preLoaderRoute: typeof AuthedTrainerOverviewIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/schedule/': {
+      id: '/_authed/schedule/'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof AuthedScheduleIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/religious-activity/': {
+      id: '/_authed/religious-activity/'
+      path: '/religious-activity'
+      fullPath: '/religious-activity'
+      preLoaderRoute: typeof AuthedReligiousActivityIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/posts/': {
@@ -169,12 +294,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPostsIndexRouteImport
       parentRoute: typeof AuthedPostsRoute
     }
+    '/_authed/physical-training/': {
+      id: '/_authed/physical-training/'
+      path: '/physical-training'
+      fullPath: '/physical-training'
+      preLoaderRoute: typeof AuthedPhysicalTrainingIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/events/': {
+      id: '/_authed/events/'
+      path: '/events'
+      fullPath: '/events'
+      preLoaderRoute: typeof AuthedEventsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/dormitory/': {
+      id: '/_authed/dormitory/'
+      path: '/dormitory'
+      fullPath: '/dormitory'
+      preLoaderRoute: typeof AuthedDormitoryIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/posts/$postId': {
       id: '/_authed/posts/$postId'
       path: '/$postId'
       fullPath: '/posts/$postId'
       preLoaderRoute: typeof AuthedPostsPostIdRouteImport
       parentRoute: typeof AuthedPostsRoute
+    }
+    '/_authed/events/create': {
+      id: '/_authed/events/create'
+      path: '/events/create'
+      fullPath: '/events/create'
+      preLoaderRoute: typeof AuthedEventsCreateRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/events/$id': {
+      id: '/_authed/events/$id'
+      path: '/events/$id'
+      fullPath: '/events/$id'
+      preLoaderRoute: typeof AuthedEventsIdRouteImport
+      parentRoute: typeof AuthedRoute
     }
   }
 }
@@ -195,17 +355,34 @@ const AuthedPostsRouteWithChildren = AuthedPostsRoute._addFileChildren(
 
 interface AuthedRouteChildren {
   AuthedPostsRoute: typeof AuthedPostsRouteWithChildren
+  AuthedIndexRoute: typeof AuthedIndexRoute
+  AuthedEventsIdRoute: typeof AuthedEventsIdRoute
+  AuthedEventsCreateRoute: typeof AuthedEventsCreateRoute
+  AuthedDormitoryIndexRoute: typeof AuthedDormitoryIndexRoute
+  AuthedEventsIndexRoute: typeof AuthedEventsIndexRoute
+  AuthedPhysicalTrainingIndexRoute: typeof AuthedPhysicalTrainingIndexRoute
+  AuthedReligiousActivityIndexRoute: typeof AuthedReligiousActivityIndexRoute
+  AuthedScheduleIndexRoute: typeof AuthedScheduleIndexRoute
+  AuthedTrainerOverviewIndexRoute: typeof AuthedTrainerOverviewIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPostsRoute: AuthedPostsRouteWithChildren,
+  AuthedIndexRoute: AuthedIndexRoute,
+  AuthedEventsIdRoute: AuthedEventsIdRoute,
+  AuthedEventsCreateRoute: AuthedEventsCreateRoute,
+  AuthedDormitoryIndexRoute: AuthedDormitoryIndexRoute,
+  AuthedEventsIndexRoute: AuthedEventsIndexRoute,
+  AuthedPhysicalTrainingIndexRoute: AuthedPhysicalTrainingIndexRoute,
+  AuthedReligiousActivityIndexRoute: AuthedReligiousActivityIndexRoute,
+  AuthedScheduleIndexRoute: AuthedScheduleIndexRoute,
+  AuthedTrainerOverviewIndexRoute: AuthedTrainerOverviewIndexRoute,
 }
 
 const AuthedRouteWithChildren =
   AuthedRoute._addFileChildren(AuthedRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
   LogoutRoute: LogoutRoute,

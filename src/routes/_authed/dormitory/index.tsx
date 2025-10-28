@@ -23,7 +23,7 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
   // Calculate statistics
   const totalRooms = 50 // Configure based on actual rooms
   const occupiedRooms = new Set(assignments?.map(a => a.room_id)).size
-  const totalCapacity = totalRooms * 4 // 4 people per room
+  const totalCapacity = totalRooms * 6 // 6 beds per room
   const currentOccupancy = assignments?.length || 0
 
   return {
@@ -61,19 +61,38 @@ function DormitoryPage() {
     return acc
   }, {})
 
+  // Generate all possible rooms
+  const generateAllRooms = () => {
+    const rooms = []
+    const blocks = ['A', 'B', 'C']
+    const roomsPerBlock = 5
+    
+    for (const block of blocks) {
+      for (let roomNum = 1; roomNum <= roomsPerBlock; roomNum++) {
+        const roomId = `Block ${block} - Room ${roomNum}`
+        rooms.push({
+          id: roomId,
+          block,
+          roomNumber: roomNum,
+          capacity: 6, // 6 beds per room
+          assignments: roomAssignments[roomId] || []
+        })
+      }
+    }
+    
+    return rooms
+  }
+
+  const allRooms = generateAllRooms()
+
   // Filter rooms
-  const filteredRooms = Object.keys(roomAssignments).filter(roomId => {
-    const building = roomId.split('-')[0]
-    const floor = roomId.split('-')[1]
+  const filteredRooms = allRooms.filter(room => {
+    const matchesBuilding = selectedBuilding === 'all' || room.block === selectedBuilding
     
-    const matchesBuilding = selectedBuilding === 'all' || building === selectedBuilding
-    const matchesFloor = selectedFloor === 'all' || floor === selectedFloor
-    
-    if (!matchesBuilding || !matchesFloor) return false
+    if (!matchesBuilding) return false
     
     if (searchTerm) {
-      const roomTrainers = roomAssignments[roomId]
-      return roomTrainers.some((a: any) => 
+      return room.assignments.some((a: any) => 
         a.trainer?.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
@@ -119,49 +138,46 @@ function DormitoryPage() {
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Search */}
-          <div className="md:col-span-2">
-            <input
-              type="text"
-              placeholder="Search by trainer name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+          <input
+            type="text"
+            placeholder="Search by trainer name..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
 
           {/* Building Filter */}
           <select
             value={selectedBuilding}
             onChange={(e) => setSelectedBuilding(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Buildings</option>
-            <option value="A">Building A</option>
-            <option value="B">Building B</option>
-            <option value="C">Building C</option>
+            <option value="A">Block A</option>
+            <option value="B">Block B</option>
+            <option value="C">Block C</option>
           </select>
 
-          {/* Floor Filter */}
+          {/* Floor Filter - Keeping for future use */}
           <select
             value={selectedFloor}
             onChange={(e) => setSelectedFloor(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             <option value="all">All Floors</option>
             <option value="1">Floor 1</option>
             <option value="2">Floor 2</option>
             <option value="3">Floor 3</option>
-            <option value="4">Floor 4</option>
           </select>
         </div>
       </div>
 
-      {/* Room Grid */}
+      {/* Dormitory Status - Grid Layout */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-semibold mb-4">
-          Room Assignments ({filteredRooms.length} rooms)
+          Dormitory Status ({filteredRooms.length} rooms)
         </h2>
         
         {filteredRooms.length === 0 ? (
@@ -170,12 +186,11 @@ function DormitoryPage() {
             <p className="text-gray-600">No rooms found matching your filters</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredRooms.map(roomId => (
-              <RoomCard 
-                key={roomId} 
-                roomId={roomId} 
-                assignments={roomAssignments[roomId]} 
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {filteredRooms.map(room => (
+              <RoomCardWithGrid 
+                key={room.id} 
+                room={room}
               />
             ))}
           </div>
@@ -240,79 +255,71 @@ function StatCard({ title, value, icon, color }: {
   )
 }
 
-// Room Card Component
-function RoomCard({ roomId, assignments }: { roomId: string; assignments: any[] }) {
-  const capacity = 4
+// Room Card with Grid Layout
+function RoomCardWithGrid({ room }: { room: any }) {
+  const { id, block, roomNumber, capacity, assignments } = room
   const currentOccupancy = assignments.length
-  const occupancyPercentage = (currentOccupancy / capacity) * 100
+  const occupancyText = `${currentOccupancy}/${capacity}`
   
-  const getStatusColor = () => {
-    if (currentOccupancy === 0) return 'border-gray-300 bg-gray-50'
-    if (currentOccupancy === capacity) return 'border-red-300 bg-red-50'
-    return 'border-green-300 bg-green-50'
-  }
-
-  const getStatusBadge = () => {
-    if (currentOccupancy === 0) return { text: 'Empty', color: 'bg-gray-500' }
-    if (currentOccupancy === capacity) return { text: 'Full', color: 'bg-red-500' }
-    return { text: 'Available', color: 'bg-green-500' }
-  }
-
-  const status = getStatusBadge()
+  // Create an array of bed slots (6 beds arranged in 3x2 grid)
+  const bedSlots = Array.from({ length: capacity }, (_, index) => {
+    const assignment = assignments[index]
+    return {
+      bedNumber: index + 1,
+      trainer: assignment?.trainer || null,
+      occupied: !!assignment
+    }
+  })
 
   return (
-    <div className={`border-2 rounded-lg p-4 ${getStatusColor()}`}>
+    <div className="border-2 border-gray-200 rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
       {/* Room Header */}
-      <div className="flex justify-between items-start mb-3">
-        <div>
-          <h3 className="text-lg font-bold text-gray-900">{roomId}</h3>
-          <p className="text-sm text-gray-600">Capacity: {currentOccupancy}/{capacity}</p>
-        </div>
-        <span className={`${status.color} text-white text-xs px-2 py-1 rounded font-semibold`}>
-          {status.text}
-        </span>
-      </div>
-
-      {/* Occupancy Bar */}
       <div className="mb-3">
-        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-blue-600 transition-all"
-            style={{ width: `${occupancyPercentage}%` }}
-          />
-        </div>
+        <h3 className="text-base font-bold text-gray-900">{id}</h3>
+        <p className="text-xs text-gray-600">{occupancyText} Training Complex {block}</p>
       </div>
 
-      {/* Assigned Trainers */}
-      <div className="space-y-2">
-        {assignments.length === 0 ? (
-          <p className="text-sm text-gray-500 italic">No trainers assigned</p>
-        ) : (
-          assignments.map((assignment: any) => (
-            <div 
-              key={assignment.id} 
-              className="flex items-center space-x-2 text-sm bg-white p-2 rounded"
-            >
-              <span className="text-lg">👤</span>
-              <div className="flex-1">
-                <p className="font-medium">{assignment.trainer?.name}</p>
-                <p className="text-xs text-gray-600">{assignment.trainer?.rank}</p>
-              </div>
-            </div>
-          ))
-        )}
-        
-        {/* Empty Slots */}
-        {Array.from({ length: capacity - currentOccupancy }).map((_, idx) => (
-          <div 
-            key={`empty-${idx}`} 
-            className="flex items-center space-x-2 text-sm bg-white border border-dashed border-gray-300 p-2 rounded"
-          >
-            <span className="text-lg">➕</span>
-            <p className="text-gray-500 italic">Available slot</p>
-          </div>
+      {/* Bed Grid - 3 columns x 2 rows = 6 beds */}
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        {bedSlots.map((slot) => (
+          <BedSlot 
+            key={slot.bedNumber}
+            bedNumber={slot.bedNumber}
+            trainer={slot.trainer}
+            occupied={slot.occupied}
+          />
         ))}
       </div>
+
+      {/* Facilities Info */}
+      <div className="text-xs text-gray-500 border-t pt-2">
+        <p>Facilities: Air Conditioning, WiFi, Study Table</p>
+      </div>
+    </div>
+  )
+}
+
+// Individual Bed Slot Component
+function BedSlot({ bedNumber, trainer, occupied }: { 
+  bedNumber: number; 
+  trainer: any; 
+  occupied: boolean;
+}) {
+  if (occupied && trainer) {
+    // Occupied slot - light red/pink background with trainer name
+    return (
+      <div className="bg-red-100 border border-red-300 rounded p-2 min-h-[50px] flex flex-col items-center justify-center transition-colors hover:bg-red-200">
+        <p className="text-xs font-semibold text-gray-800 text-center leading-tight break-words">
+          {trainer.name}
+        </p>
+      </div>
+    )
+  }
+  
+  // Vacant slot - light blue background with dash
+  return (
+    <div className="bg-blue-50 border border-blue-200 rounded p-2 min-h-[50px] flex items-center justify-center transition-colors hover:bg-blue-100">
+      <span className="text-gray-400 text-lg font-light">—</span>
     </div>
   )
 }
