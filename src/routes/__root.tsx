@@ -103,7 +103,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="bg-gray-50">
         {/* Top Navigation Bar */}
-        <nav className="bg-blue-900 text-white shadow-lg">
+        <nav className="bg-gradient-to-r from-orange-600 to-red-700 text-white shadow-lg">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex justify-between items-center h-16">
               {/* Logo and Title */}
@@ -111,7 +111,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <span className="text-2xl">🔥</span>
                 <div>
                   <h1 className="text-xl font-bold">ABPM Trainer System</h1>
-                  <p className="text-xs text-blue-200">Akademi Bomba dan Penyelamat Malaysia</p>
+                  <p className="text-xs text-orange-100">Akademi Bomba dan Penyelamat Malaysia</p>
                 </div>
               </div>
 
@@ -161,7 +161,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
-              <div className="md:hidden py-4 border-t border-blue-800">
+              <div className="md:hidden py-4 border-t border-red-800">
                 <div className="flex flex-col space-y-2">
                   <MobileNavLink to="/" label="Home" icon="🏠" />
                   <MobileNavLink to="/schedule" label="Schedule" icon="📅" />
@@ -194,10 +194,10 @@ function NavLink({ to, label, icon }: { to: string; label: string; icon: string 
     <Link
       to={to}
       activeProps={{
-        className: 'bg-blue-700 text-white',
+        className: 'bg-red-800 text-white',
       }}
       activeOptions={{ exact: to === '/' }}
-      className="px-3 py-2 rounded hover:bg-blue-800 transition flex items-center space-x-2 text-sm"
+      className="px-3 py-2 rounded hover:bg-red-800 transition flex items-center space-x-2 text-sm"
     >
       <span>{icon}</span>
       <span>{label}</span>

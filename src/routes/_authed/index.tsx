@@ -74,7 +74,8 @@ function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg shadow-lg p-8 text-white">
+      <div className="bg-gradient-to-r from-orange-600 to-red-700 rounded lg shadow-lg p-8 text-white">
+        
         <div className="flex items-center space-x-4">
           <div className="text-6xl">🔥</div>
           <div>
