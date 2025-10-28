@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
 import { useState } from 'react'
@@ -21,9 +21,9 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
     .eq('status', 'active')
 
   // Calculate statistics
-  const totalRooms = 50 // Configure based on actual rooms
+  const totalRooms = 50
   const occupiedRooms = new Set(assignments?.map(a => a.room_id)).size
-  const totalCapacity = totalRooms * 6 // 6 beds per room
+  const totalCapacity = totalRooms * 6
   const currentOccupancy = assignments?.length || 0
 
   return {
@@ -40,16 +40,63 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
   }
 })
 
+// Server function to assign trainer to room
+const assignTrainer = createServerFn({ method: 'POST' })
+  .handler(async (ctx) => {
+    const supabase = getSupabaseServerClient()
+    const body = await ctx.request.json()
+    
+    const { error } = await supabase
+      .from('dormitory_assignments')
+      .insert({
+        trainer_id: body.trainerId,
+        room_id: body.roomId,
+        check_in: new Date().toISOString(),
+        status: 'active'
+      })
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    return { success: true }
+  })
+
+// Server function to remove trainer from room
+const removeTrainer = createServerFn({ method: 'POST' })
+  .handler(async (ctx) => {
+    const supabase = getSupabaseServerClient()
+    const body = await ctx.request.json()
+    
+    const { error } = await supabase
+      .from('dormitory_assignments')
+      .delete()
+      .eq('id', body.assignmentId)
+
+    if (error) {
+      throw new Error(error.message)
+    }
+
+    return { success: true }
+  })
+
 export const Route = createFileRoute('/_authed/dormitory/')({
   loader: async () => await getDormitoryData(),
   component: DormitoryPage,
 })
 
 function DormitoryPage() {
+  const router = useRouter()
   const { assignments, trainers, stats } = Route.useLoaderData()
   const [selectedBuilding, setSelectedBuilding] = useState<string>('all')
   const [selectedFloor, setSelectedFloor] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
+  
+  // Assignment form state
+  const [selectedTrainer, setSelectedTrainer] = useState<string>('')
+  const [selectedRoom, setSelectedRoom] = useState<string>('')
+  const [isAssigning, setIsAssigning] = useState(false)
+  const [isRemoving, setIsRemoving] = useState(false)
 
   // Group assignments by room
   const roomAssignments = assignments.reduce((acc: any, assignment: any) => {
@@ -74,7 +121,7 @@ function DormitoryPage() {
           id: roomId,
           block,
           roomNumber: roomNum,
-          capacity: 6, // 6 beds per room
+          capacity: 6,
           assignments: roomAssignments[roomId] || []
         })
       }
@@ -99,6 +146,59 @@ function DormitoryPage() {
     
     return true
   })
+
+  // Get unassigned trainers
+  const unassignedTrainers = trainers.filter((trainer: any) => 
+    !assignments.some((a: any) => a.trainer?.id === trainer.id)
+  )
+
+  // Handle assign trainer
+  const handleAssign = async () => {
+    if (!selectedTrainer || !selectedRoom) {
+      alert('Please select both a trainer and a room')
+      return
+    }
+
+    setIsAssigning(true)
+    try {
+      await assignTrainer({ 
+        data: { 
+          trainerId: parseInt(selectedTrainer), 
+          roomId: selectedRoom 
+        } 
+      })
+      
+      // Reset form
+      setSelectedTrainer('')
+      setSelectedRoom('')
+      
+      // Invalidate and refetch data
+      await router.invalidate()
+    } catch (error) {
+      alert('Failed to assign trainer: ' + (error as Error).message)
+    } finally {
+      setIsAssigning(false)
+    }
+  }
+
+  // Handle remove trainer
+  const handleRemove = async (assignmentId: number) => {
+    if (!confirm('Are you sure you want to remove this trainer from the room?')) {
+      return
+    }
+
+    setIsRemoving(true)
+    try {
+      await removeTrainer({ data: { assignmentId } })
+      
+      // Invalidate and refetch data
+      await router.invalidate()
+    } catch (error) {
+      alert('Failed to remove trainer: ' + (error as Error).message)
+    } finally {
+      setIsRemoving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -136,10 +236,68 @@ function DormitoryPage() {
         />
       </div>
 
+      {/* Assign Trainer to Dormitory */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Assign Trainer to Dormitory</h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          {/* Trainer Selection */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Trainer
+            </label>
+            <select
+              value={selectedTrainer}
+              onChange={(e) => setSelectedTrainer(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isAssigning || isRemoving}
+            >
+              <option value="">Enter trainer name...</option>
+              {unassignedTrainers.map((trainer: any) => (
+                <option key={trainer.id} value={trainer.id}>
+                  {trainer.name} - {trainer.rank}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Room Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Dormitory
+            </label>
+            <select
+              value={selectedRoom}
+              onChange={(e) => setSelectedRoom(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              disabled={isAssigning || isRemoving}
+            >
+              <option value="">Select Block</option>
+              {allRooms
+                .filter(room => room.assignments.length < room.capacity)
+                .map((room) => (
+                  <option key={room.id} value={room.id}>
+                    {room.id} ({room.assignments.length}/{room.capacity})
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Assign Button */}
+          <div>
+            <button
+              onClick={handleAssign}
+              disabled={isAssigning || isRemoving || !selectedTrainer || !selectedRoom}
+              className="w-full px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            >
+              {isAssigning ? 'Assigning...' : 'Assign'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Search */}
           <input
             type="text"
             placeholder="Search by trainer name..."
@@ -148,7 +306,6 @@ function DormitoryPage() {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
 
-          {/* Building Filter */}
           <select
             value={selectedBuilding}
             onChange={(e) => setSelectedBuilding(e.target.value)}
@@ -160,7 +317,6 @@ function DormitoryPage() {
             <option value="C">Block C</option>
           </select>
 
-          {/* Floor Filter - Keeping for future use */}
           <select
             value={selectedFloor}
             onChange={(e) => setSelectedFloor(e.target.value)}
@@ -191,6 +347,8 @@ function DormitoryPage() {
               <RoomCardWithGrid 
                 key={room.id} 
                 room={room}
+                onRemove={handleRemove}
+                isRemoving={isRemoving}
               />
             ))}
           </div>
@@ -199,32 +357,28 @@ function DormitoryPage() {
 
       {/* Unassigned Trainers */}
       <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-semibold mb-4">Unassigned Trainers</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          Unassigned Trainers ({unassignedTrainers.length})
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {trainers
-            .filter((trainer: any) => 
-              !assignments.some((a: any) => a.trainer?.id === trainer.id)
-            )
-            .map((trainer: any) => (
-              <div 
-                key={trainer.id} 
-                className="p-4 border border-yellow-300 bg-yellow-50 rounded-lg"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-yellow-200 rounded-full flex items-center justify-center">
-                    <span className="text-xl">⚠️</span>
-                  </div>
-                  <div>
-                    <p className="font-semibold">{trainer.name}</p>
-                    <p className="text-sm text-gray-600">{trainer.rank}</p>
-                  </div>
+          {unassignedTrainers.map((trainer: any) => (
+            <div 
+              key={trainer.id} 
+              className="p-4 border border-yellow-300 bg-yellow-50 rounded-lg"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-yellow-200 rounded-full flex items-center justify-center">
+                  <span className="text-xl">⚠️</span>
+                </div>
+                <div>
+                  <p className="font-semibold">{trainer.name}</p>
+                  <p className="text-sm text-gray-600">{trainer.rank}</p>
                 </div>
               </div>
-            ))}
+            </div>
+          ))}
           
-          {trainers.filter((t: any) => 
-            !assignments.some((a: any) => a.trainer?.id === t.id)
-          ).length === 0 && (
+          {unassignedTrainers.length === 0 && (
             <p className="text-gray-600 col-span-full">All trainers are assigned to rooms</p>
           )}
         </div>
@@ -256,16 +410,21 @@ function StatCard({ title, value, icon, color }: {
 }
 
 // Room Card with Grid Layout
-function RoomCardWithGrid({ room }: { room: any }) {
+function RoomCardWithGrid({ room, onRemove, isRemoving }: { 
+  room: any;
+  onRemove: (assignmentId: number) => void;
+  isRemoving: boolean;
+}) {
   const { id, block, roomNumber, capacity, assignments } = room
   const currentOccupancy = assignments.length
   const occupancyText = `${currentOccupancy}/${capacity}`
   
-  // Create an array of bed slots (6 beds arranged in 3x2 grid)
+  // Create an array of bed slots
   const bedSlots = Array.from({ length: capacity }, (_, index) => {
     const assignment = assignments[index]
     return {
       bedNumber: index + 1,
+      assignment: assignment || null,
       trainer: assignment?.trainer || null,
       occupied: !!assignment
     }
@@ -286,7 +445,10 @@ function RoomCardWithGrid({ room }: { room: any }) {
             key={slot.bedNumber}
             bedNumber={slot.bedNumber}
             trainer={slot.trainer}
+            assignment={slot.assignment}
             occupied={slot.occupied}
+            onRemove={onRemove}
+            isRemoving={isRemoving}
           />
         ))}
       </div>
@@ -300,18 +462,31 @@ function RoomCardWithGrid({ room }: { room: any }) {
 }
 
 // Individual Bed Slot Component
-function BedSlot({ bedNumber, trainer, occupied }: { 
+function BedSlot({ bedNumber, trainer, assignment, occupied, onRemove, isRemoving }: { 
   bedNumber: number; 
   trainer: any; 
+  assignment: any;
   occupied: boolean;
+  onRemove: (assignmentId: number) => void;
+  isRemoving: boolean;
 }) {
-  if (occupied && trainer) {
+  if (occupied && trainer && assignment) {
     // Occupied slot - light red/pink background with trainer name
     return (
-      <div className="bg-red-100 border border-red-300 rounded p-2 min-h-[50px] flex flex-col items-center justify-center transition-colors hover:bg-red-200">
+      <div className="bg-red-100 border border-red-300 rounded p-2 min-h-[50px] flex flex-col items-center justify-center transition-colors hover:bg-red-200 relative group">
         <p className="text-xs font-semibold text-gray-800 text-center leading-tight break-words">
           {trainer.name}
         </p>
+        
+        {/* Remove button - shows on hover */}
+        <button
+          onClick={() => onRemove(assignment.id)}
+          disabled={isRemoving}
+          className="absolute top-0 right-0 -mt-1 -mr-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          title="Remove trainer"
+        >
+          ×
+        </button>
       </div>
     )
   }
