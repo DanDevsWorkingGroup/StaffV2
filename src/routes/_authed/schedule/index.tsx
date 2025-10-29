@@ -7,37 +7,57 @@ import { useState } from 'react'
 const getScheduleData = createServerFn({ method: 'GET' }).handler(async () => {
   const supabase = getSupabaseServerClient()
   
-  // Fetch all training sessions for the current month
   const currentDate = new Date()
   const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
   const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
   
-  const { data: sessions, error } = await supabase
-    .from('training_sessions')
-    .select(`
-      *,
-      trainer:trainers(id, name, rank)
-    `)
-    .gte('date', firstDay.toISOString().split('T')[0])
-    .lte('date', lastDay.toISOString().split('T')[0])
-    .order('date', { ascending: true })
+  const firstDayStr = firstDay.toISOString().split('T')[0]
+  const lastDayStr = lastDay.toISOString().split('T')[0]
 
+  // Fetch events (training courses/programs) for the current month
+  const { data: events } = await supabase
+    .from('events')
+    .select('*')
+    .or(`start_date.lte.${lastDayStr},end_date.gte.${firstDayStr}`)
+    .order('start_date', { ascending: true })
+
+  // Fetch all active trainers
   const { data: trainers } = await supabase
     .from('trainers')
     .select('*')
     .eq('status', 'active')
+    .order('name', { ascending: true })
+
+  // Fetch schedules (trainer assignments and availability)
+  const { data: schedules } = await supabase
+    .from('schedules')
+    .select(`
+      *,
+      trainer:trainers(id, name, rank, specialization)
+    `)
+    .gte('date', firstDayStr)
+    .lte('date', lastDayStr)
+    .order('date', { ascending: true })
 
   // Get quick stats
   const todayStr = currentDate.toISOString().split('T')[0]
-  const todaySessions = sessions?.filter(s => s.date === todayStr) || []
+  
+  // Count today's schedules with status not 'cancelled'
+  const todaySchedules = schedules?.filter(s => 
+    s.date === todayStr && s.status !== 'cancelled'
+  ) || []
+
+  // Count this week's schedules
+  const weekSchedules = schedules?.filter(s => s.status !== 'cancelled') || []
   
   return {
-    sessions: sessions || [],
+    events: events || [],
     trainers: trainers || [],
+    schedules: schedules || [],
     stats: {
       activeTrainers: trainers?.length || 0,
-      todaySessions: todaySessions.length,
-      thisWeekSessions: sessions?.length || 0,
+      todaySessions: todaySchedules.length,
+      thisWeekSessions: weekSchedules.length,
     }
   }
 })
@@ -48,9 +68,9 @@ export const Route = createFileRoute('/_authed/schedule/')({
 })
 
 function SchedulePage() {
-  const { sessions, trainers, stats } = Route.useLoaderData()
+  const { events, trainers, schedules, stats } = Route.useLoaderData()
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [view, setView] = useState<'week' | 'month'>('week')
+  const [view, setView] = useState<'week' | 'month' | 'trainer-schedule'>('week')
 
   return (
     <div className="space-y-6">
@@ -128,6 +148,14 @@ function SchedulePage() {
             >
               Month
             </button>
+            <button
+              onClick={() => setView('trainer-schedule')}
+              className={`px-4 py-2 rounded ${
+                view === 'trainer-schedule' ? 'bg-blue-600 text-white' : 'bg-gray-200'
+              }`}
+            >
+              Trainer Schedule
+            </button>
           </div>
         </div>
       </div>
@@ -135,9 +163,16 @@ function SchedulePage() {
       {/* Calendar Grid */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {view === 'week' ? (
-          <WeeklyCalendar sessions={sessions} currentDate={currentDate} />
+          <WeeklyCalendar schedules={schedules} events={events} currentDate={currentDate} />
+        ) : view === 'month' ? (
+          <MonthlyCalendar schedules={schedules} events={events} currentDate={currentDate} />
         ) : (
-          <MonthlyCalendar sessions={sessions} currentDate={currentDate} />
+          <TrainerScheduleGrid 
+            trainers={trainers} 
+            schedules={schedules}
+            events={events}
+            currentDate={currentDate} 
+          />
         )}
       </div>
 
@@ -154,6 +189,9 @@ function SchedulePage() {
                 <div>
                   <p className="font-semibold">{trainer.name}</p>
                   <p className="text-sm text-gray-600">{trainer.rank}</p>
+                  {trainer.specialization && (
+                    <p className="text-xs text-gray-500">{trainer.specialization}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -186,11 +224,282 @@ function StatCard({ title, value, icon, color }: {
   )
 }
 
+// Trainer Schedule Grid Component
+function TrainerScheduleGrid({ 
+  trainers, 
+  schedules,
+  events,
+  currentDate 
+}: { 
+  trainers: any[]; 
+  schedules: any[];
+  events: any[];
+  currentDate: Date;
+}) {
+  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
+  const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
+  const daysInMonth = lastDay.getDate()
+  
+  // Generate all dates in the month
+  const dates = Array.from({ length: daysInMonth }, (_, i) => {
+    const date = new Date(firstDay)
+    date.setDate(firstDay.getDate() + i)
+    return date
+  })
+
+  // Helper function to check if an event occurs on a specific date
+  const isEventOnDate = (event: any, date: Date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    const startDate = event.start_date
+    const endDate = event.end_date
+    
+    return dateStr >= startDate && dateStr <= endDate
+  }
+
+  // Helper function to get events on a specific date
+  const getEventsForDate = (date: Date) => {
+    return events.filter(event => isEventOnDate(event, date))
+  }
+
+  // Helper function to get schedule for a trainer on a specific date
+  const getScheduleForTrainerDate = (trainerId: number, date: Date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    return schedules.find(s => s.trainer_id === trainerId && s.date === dateStr)
+  }
+
+  // Helper function to format availability times
+  const formatAvailability = (availability: string[] | null) => {
+    if (!availability || availability.length === 0) return ''
+    return availability.join(', ')
+  }
+
+  // Helper function to get status color
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'scheduled':
+        return 'bg-blue-100 text-blue-800 border-blue-300'
+      case 'in progress':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+      case 'completed':
+        return 'bg-green-100 text-green-800 border-green-300'
+      case 'cancelled':
+        return 'bg-red-100 text-red-800 border-red-300'
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300'
+    }
+  }
+
+  // Calculate total schedules per trainer
+  const getTrainerScheduleCount = (trainerId: number) => {
+    return schedules.filter(s => s.trainer_id === trainerId && s.status !== 'cancelled').length
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="inline-block min-w-full">
+        {/* Header */}
+        <div className="bg-gray-50 border-b sticky top-0 z-20">
+          <div className="flex">
+            {/* Trainer column header */}
+            <div className="w-56 p-3 font-semibold border-r sticky left-0 bg-gray-50 z-30">
+              <div>Trainer</div>
+              <div className="text-xs font-normal text-gray-600 mt-1">
+                {currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </div>
+            </div>
+            {/* Date headers */}
+            {dates.map((date, idx) => {
+              const isToday = date.toDateString() === new Date().toDateString()
+              const dayEvents = getEventsForDate(date)
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`min-w-[100px] p-2 text-center border-r ${
+                    isToday ? 'bg-blue-50' : ''
+                  }`}
+                >
+                  <div className="font-semibold text-xs">
+                    {date.toLocaleDateString('en-US', { weekday: 'short' })}
+                  </div>
+                  <div className={`text-sm mt-1 ${isToday ? 'text-blue-600 font-bold' : 'text-gray-600'}`}>
+                    {date.getDate()}
+                  </div>
+                  {/* Show event indicator if there's an event on this date */}
+                  {dayEvents.length > 0 && (
+                    <div className="mt-1">
+                      {dayEvents.map(event => (
+                        <div 
+                          key={event.id}
+                          className="w-2 h-2 rounded-full mx-auto"
+                          style={{ backgroundColor: event.color || '#3b82f6' }}
+                          title={event.name}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Trainer rows */}
+        <div>
+          {trainers.map((trainer) => {
+            const scheduleCount = getTrainerScheduleCount(trainer.id)
+            
+            return (
+              <div key={trainer.id} className="flex border-b hover:bg-gray-50">
+                {/* Trainer info column */}
+                <div className="w-56 p-3 border-r sticky left-0 bg-white z-10">
+                  <div className="font-semibold text-sm">{trainer.name}</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    {trainer.specialization || trainer.rank}
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                      {trainer.status}
+                    </span>
+                    {scheduleCount > 0 && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                        {scheduleCount} days
+                      </span>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Schedule cells */}
+                {dates.map((date, idx) => {
+                  const schedule = getScheduleForTrainerDate(trainer.id, date)
+                  const dayEvents = getEventsForDate(date)
+                  const isToday = date.toDateString() === new Date().toDateString()
+                  
+                  return (
+                    <div 
+                      key={idx} 
+                      className={`min-w-[100px] p-2 border-r ${
+                        isToday ? 'bg-blue-50/30' : ''
+                      }`}
+                    >
+                      {/* Show events first */}
+                      {dayEvents.length > 0 && (
+                        <div className="space-y-1 mb-2">
+                          {dayEvents.map((event) => (
+                            <div 
+                              key={event.id}
+                              className="text-xs p-1.5 rounded border-l-4"
+                              style={{ 
+                                borderLeftColor: event.color || '#3b82f6',
+                                backgroundColor: event.color ? `${event.color}15` : '#eff6ff'
+                              }}
+                              title={`${event.name} - ${event.category || 'Training'}`}
+                            >
+                              <div className="font-semibold truncate text-gray-800">
+                                {event.name}
+                              </div>
+                              {event.category && (
+                                <div className="text-xs text-gray-600 truncate">
+                                  {event.category}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Show trainer schedule/status */}
+                      {schedule ? (
+                        <div className={`text-xs p-2 rounded border ${getStatusColor(schedule.status)}`}>
+                          <div className="font-bold text-center mb-1">
+                            {schedule.status?.toUpperCase()}
+                          </div>
+                          {schedule.availability && schedule.availability.length > 0 && (
+                            <div className="text-xs text-center mt-1">
+                              🕐 {formatAvailability(schedule.availability)}
+                            </div>
+                          )}
+                          {schedule.notes && (
+                            <div className="text-xs text-center mt-1 truncate" title={schedule.notes}>
+                              📝 {schedule.notes}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="text-center text-gray-300 text-xs py-2">
+                          —
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Summary Footer */}
+        <div className="bg-gray-50 border-t">
+          <div className="flex">
+            <div className="w-56 p-3 font-semibold border-r sticky left-0 bg-gray-50">
+              Total Active
+            </div>
+            {dates.map((date, idx) => {
+              const dateStr = date.toISOString().split('T')[0]
+              const daySchedules = schedules.filter(
+                s => s.date === dateStr && s.status !== 'cancelled'
+              ).length
+              
+              return (
+                <div 
+                  key={idx} 
+                  className="min-w-[100px] p-3 text-center border-r font-semibold"
+                >
+                  {daySchedules > 0 ? daySchedules : '—'}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="bg-gray-50 p-4 border-t">
+          <div className="text-sm font-semibold mb-3">Legend:</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-blue-100 border border-blue-300 rounded"></div>
+              <span>Scheduled</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-yellow-100 border border-yellow-300 rounded"></div>
+              <span>In Progress</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-green-100 border border-green-300 rounded"></div>
+              <span>Completed</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-red-100 border border-red-300 rounded"></div>
+              <span>Cancelled</span>
+            </div>
+          </div>
+          <div className="mt-3 text-xs text-gray-600">
+            <strong>Events</strong> are shown with colored left borders. <strong>Trainer status</strong> is shown in colored blocks with availability times.
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Weekly Calendar View
-function WeeklyCalendar({ sessions, currentDate }: { sessions: any[]; currentDate: Date }) {
+function WeeklyCalendar({ schedules, events, currentDate }: { 
+  schedules: any[]; 
+  events: any[];
+  currentDate: Date;
+}) {
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   
-  // Get current week dates
   const startOfWeek = new Date(currentDate)
   const day = startOfWeek.getDay()
   const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1)
@@ -202,41 +511,72 @@ function WeeklyCalendar({ sessions, currentDate }: { sessions: any[]; currentDat
     return date
   })
 
+  const isEventOnDate = (event: any, date: Date) => {
+    const dateStr = date.toISOString().split('T')[0]
+    return dateStr >= event.start_date && dateStr <= event.end_date
+  }
+
   return (
     <div className="p-4">
       <div className="grid grid-cols-7 gap-2">
-        {days.map((day, idx) => (
-          <div key={day} className="text-center">
-            <div className="font-semibold text-gray-700">{day}</div>
-            <div className="text-2xl font-bold text-gray-900 mt-2">
-              {weekDates[idx].getDate()}
-            </div>
-            <div className="mt-4 space-y-2">
-              {sessions
-                .filter(s => {
-                  const sessionDate = new Date(s.date)
-                  return sessionDate.toDateString() === weekDates[idx].toDateString()
-                })
-                .map(session => (
+        {days.map((day, idx) => {
+          const date = weekDates[idx]
+          const dateStr = date.toISOString().split('T')[0]
+          const daySchedules = schedules.filter(s => s.date === dateStr)
+          const dayEvents = events.filter(e => isEventOnDate(e, date))
+          
+          return (
+            <div key={day} className="text-center">
+              <div className="font-semibold text-gray-700">{day}</div>
+              <div className="text-2xl font-bold text-gray-900 mt-2">
+                {date.getDate()}
+              </div>
+              <div className="mt-4 space-y-2">
+                {/* Show Events */}
+                {dayEvents.map(event => (
                   <div 
-                    key={session.id} 
-                    className="bg-blue-100 text-blue-800 text-xs p-2 rounded"
+                    key={event.id}
+                    className="text-xs p-2 rounded border-l-4"
+                    style={{ 
+                      borderLeftColor: event.color || '#3b82f6',
+                      backgroundColor: event.color ? `${event.color}15` : '#eff6ff'
+                    }}
                   >
-                    <div className="font-semibold">{session.type}</div>
-                    <div className="text-xs">{session.trainer?.name}</div>
+                    <div className="font-semibold">{event.name}</div>
+                    {event.category && (
+                      <div className="text-xs text-gray-600">{event.category}</div>
+                    )}
                   </div>
-                ))
-              }
+                ))}
+                
+                {/* Show Trainer Schedules */}
+                {daySchedules.map(schedule => (
+                  <div 
+                    key={schedule.id} 
+                    className="bg-green-100 text-green-800 text-xs p-2 rounded"
+                  >
+                    <div className="font-semibold">{schedule.trainer?.name}</div>
+                    <div className="text-xs">{schedule.status}</div>
+                    {schedule.availability && schedule.availability.length > 0 && (
+                      <div className="text-xs">{schedule.availability.join(', ')}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 }
 
 // Monthly Calendar View
-function MonthlyCalendar({ sessions, currentDate }: { sessions: any[]; currentDate: Date }) {
+function MonthlyCalendar({ schedules, events, currentDate }: { 
+  schedules: any[]; 
+  events: any[];
+  currentDate: Date;
+}) {
   const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
   const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
   const startDay = firstDay.getDay()
@@ -245,19 +585,20 @@ function MonthlyCalendar({ sessions, currentDate }: { sessions: any[]; currentDa
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   const calendar = []
 
-  // Add empty cells for days before month starts
   for (let i = 0; i < startDay; i++) {
     calendar.push(null)
   }
 
-  // Add all days of the month
   for (let day = 1; day <= daysInMonth; day++) {
     calendar.push(day)
   }
 
+  const isEventOnDate = (event: any, dateStr: string) => {
+    return dateStr >= event.start_date && dateStr <= event.end_date
+  }
+
   return (
     <div className="p-4">
-      {/* Day headers */}
       <div className="grid grid-cols-7 gap-2 mb-2">
         {days.map(day => (
           <div key={day} className="text-center font-semibold text-gray-700 py-2">
@@ -266,7 +607,6 @@ function MonthlyCalendar({ sessions, currentDate }: { sessions: any[]; currentDa
         ))}
       </div>
 
-      {/* Calendar grid */}
       <div className="grid grid-cols-7 gap-2">
         {calendar.map((day, idx) => {
           if (!day) {
@@ -274,7 +614,8 @@ function MonthlyCalendar({ sessions, currentDate }: { sessions: any[]; currentDa
           }
 
           const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          const daySessions = sessions.filter(s => s.date === dateStr)
+          const daySchedules = schedules.filter(s => s.date === dateStr)
+          const dayEvents = events.filter(e => isEventOnDate(e, dateStr))
 
           return (
             <div 
@@ -283,18 +624,31 @@ function MonthlyCalendar({ sessions, currentDate }: { sessions: any[]; currentDa
             >
               <div className="font-semibold text-gray-900">{day}</div>
               <div className="mt-1 space-y-1">
-                {daySessions.slice(0, 2).map(session => (
+                {dayEvents.slice(0, 1).map(event => (
                   <div 
-                    key={session.id} 
-                    className="bg-green-100 text-green-800 text-xs p-1 rounded truncate"
-                    title={session.type}
+                    key={event.id}
+                    className="text-xs p-1 rounded border-l-2"
+                    style={{ 
+                      borderLeftColor: event.color || '#3b82f6',
+                      backgroundColor: event.color ? `${event.color}20` : '#eff6ff'
+                    }}
+                    title={event.name}
                   >
-                    {session.type.substring(0, 10)}
+                    {event.name.substring(0, 8)}
                   </div>
                 ))}
-                {daySessions.length > 2 && (
+                {daySchedules.slice(0, 1).map(schedule => (
+                  <div 
+                    key={schedule.id}
+                    className="bg-green-100 text-green-800 text-xs p-1 rounded truncate"
+                    title={`${schedule.trainer?.name} - ${schedule.status}`}
+                  >
+                    {schedule.trainer?.name?.substring(0, 8)}
+                  </div>
+                ))}
+                {(dayEvents.length + daySchedules.length) > 2 && (
                   <div className="text-xs text-gray-600">
-                    +{daySessions.length - 2} more
+                    +{dayEvents.length + daySchedules.length - 2} more
                   </div>
                 )}
               </div>
