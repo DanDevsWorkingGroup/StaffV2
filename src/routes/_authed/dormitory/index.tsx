@@ -42,15 +42,15 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
 
 // Server function to assign trainer to room
 const assignTrainer = createServerFn({ method: 'POST' })
-  .handler(async (ctx) => {
+  .inputValidator((data: { trainerId: number; roomId: string }) => data)
+  .handler(async ({ data }) => {
     const supabase = getSupabaseServerClient()
-    const body = await ctx.request.json()
     
     const { error } = await supabase
       .from('dormitory_assignments')
       .insert({
-        trainer_id: body.trainerId,
-        room_id: body.roomId,
+        trainer_id: data.trainerId,
+        room_id: data.roomId,
         check_in: new Date().toISOString(),
         status: 'active'
       })
@@ -64,14 +64,14 @@ const assignTrainer = createServerFn({ method: 'POST' })
 
 // Server function to remove trainer from room
 const removeTrainer = createServerFn({ method: 'POST' })
-  .handler(async (ctx) => {
+  .inputValidator((data: { assignmentId: number }) => data)
+  .handler(async ({ data }) => {
     const supabase = getSupabaseServerClient()
-    const body = await ctx.request.json()
     
     const { error } = await supabase
       .from('dormitory_assignments')
       .delete()
-      .eq('id', body.assignmentId)
+      .eq('id', data.assignmentId)
 
     if (error) {
       throw new Error(error.message)
