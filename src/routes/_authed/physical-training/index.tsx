@@ -48,20 +48,19 @@ const createTraining = createServerFn({ method: 'POST' })
 
 const TRAINING_TYPES = [
   'Physical Fitness Training',
+  'Combat Drills',
+  'Agility Exercises',
+  'Endurance Training',
+  'Strength Conditioning',
+  'Flexibility Sessions',
   'Safety Equipment Inspection',
   'Emergency Response Drill',
   'Team Building Workshop',
 ]
 
 const TIME_SLOTS = [
-  '5:00 PM - 5:30 PM',
-  '5:30 PM - 6:00 PM',
-  '6:00 PM - 6:30 PM',
-  '6:30 PM - 7:00 PM',
-  '7:00 PM - 7:30 PM',
-  '7:30 PM - 8:00 PM',
-  '8:00 PM - 8:30 PM',
-  '8:30 PM - 9:00 PM',
+  '5:00 PM - 6:00 PM',
+  '6:00 PM - 7:00 PM',
 ]
 
 export const Route = createFileRoute('/_authed/physical-training/')({
@@ -116,7 +115,7 @@ function PhysicalTrainingPage() {
       {/* Header */}
       <div className="bg-white rounded-lg shadow p-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Physical Training Schedule</h1>
-        <p className="text-gray-600">Schedule after-hours physical activities (5:00 PM - 9:00 PM)</p>
+        <p className="text-gray-600">Schedule after-hours physical activities (5:00 PM - 7:00 PM)</p>
       </div>
 
       {/* Month Navigation */}
