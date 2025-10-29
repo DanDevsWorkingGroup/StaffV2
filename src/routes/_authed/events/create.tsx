@@ -3,26 +3,82 @@ import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
 import { useState } from 'react'
 
-// Server function to create event
-const createEvent = createServerFn({ method: 'POST' })
+// Server function to fetch trainers
+const getTrainers = createServerFn({ method: 'GET' }).handler(async () => {
+  const supabase = getSupabaseServerClient()
+  
+  const { data: trainers } = await supabase
+    .from('trainers')
+    .select('*')
+    .eq('status', 'active')
+    .order('name', { ascending: true })
+
+  return { trainers: trainers || [] }
+})
+
+// Server function to create event with trainer assignments
+const createEventWithTrainers = createServerFn({ method: 'POST' })
   .inputValidator((data: {
     name: string
     category: string
     start_date: string
     end_date: string
     description?: string
+    color: string
+    trainer_ids: number[]
   }) => data)
   .handler(async ({ data }) => {
     const supabase = getSupabaseServerClient()
     
-    const { data: event, error } = await supabase
+    // Create the event
+    const { data: event, error: eventError } = await supabase
       .from('events')
-      .insert([data])
+      .insert([{
+        name: data.name,
+        category: data.category,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        description: data.description,
+        color: data.color
+      }])
       .select()
       .single()
 
-    if (error) {
-      return { error: error.message }
+    if (eventError) {
+      return { error: eventError.message }
+    }
+
+    // Create schedule entries for each selected trainer for each day of the event
+    if (data.trainer_ids.length > 0) {
+      const scheduleEntries = []
+      const startDate = new Date(data.start_date)
+      const endDate = new Date(data.end_date)
+      
+      // Loop through each date in the event range
+      for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+        const dateStr = date.toISOString().split('T')[0]
+        
+        // Create schedule entry for each trainer
+        for (const trainerId of data.trainer_ids) {
+          scheduleEntries.push({
+            trainer_id: trainerId,
+            date: dateStr,
+            status: 'scheduled',
+            availability: [], // Can be updated later
+            notes: `Assigned to: ${data.name}`
+          })
+        }
+      }
+
+      // Insert all schedule entries
+      const { error: scheduleError } = await supabase
+        .from('schedules')
+        .insert(scheduleEntries)
+
+      if (scheduleError) {
+        console.error('Error creating schedules:', scheduleError)
+        // Don't fail the entire operation if schedule creation fails
+      }
     }
 
     return { success: true, event }
@@ -44,20 +100,61 @@ const EVENT_CATEGORIES = [
 ]
 
 export const Route = createFileRoute('/_authed/events/create')({
+  loader: async () => await getTrainers(),
   component: CreateEventPage,
 })
 
 function CreateEventPage() {
   const navigate = useNavigate()
+  const { trainers } = Route.useLoaderData()
+  
   const [formData, setFormData] = useState({
     name: '',
     category: EVENT_CATEGORIES[0].name,
     start_date: '',
     end_date: '',
     description: '',
+    color: EVENT_CATEGORIES[0].color,
+    trainer_ids: [] as number[],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Handle category change and update color
+  const handleCategoryChange = (category: string) => {
+    const selectedCategory = EVENT_CATEGORIES.find(c => c.name === category)
+    setFormData({
+      ...formData,
+      category,
+      color: selectedCategory?.color || EVENT_CATEGORIES[0].color
+    })
+  }
+
+  // Handle trainer selection
+  const handleTrainerToggle = (trainerId: number) => {
+    setFormData(prev => ({
+      ...prev,
+      trainer_ids: prev.trainer_ids.includes(trainerId)
+        ? prev.trainer_ids.filter(id => id !== trainerId)
+        : [...prev.trainer_ids, trainerId]
+    }))
+  }
+
+  // Select all trainers
+  const handleSelectAll = () => {
+    setFormData(prev => ({
+      ...prev,
+      trainer_ids: trainers.map((t: any) => t.id)
+    }))
+  }
+
+  // Deselect all trainers
+  const handleDeselectAll = () => {
+    setFormData(prev => ({
+      ...prev,
+      trainer_ids: []
+    }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -72,7 +169,7 @@ function CreateEventPage() {
         return
       }
 
-      const result = await createEvent({ data: formData })
+      const result = await createEventWithTrainers({ data: formData })
       
       if (result.error) {
         setError(result.error)
@@ -89,11 +186,11 @@ function CreateEventPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="bg-white rounded-lg shadow p-6">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Create New Event</h1>
-        <p className="text-gray-600">Fill in the details to create a training event</p>
+        <p className="text-gray-600">Fill in the details to create a training event and assign trainers</p>
       </div>
 
       {/* Form */}
@@ -129,7 +226,7 @@ function CreateEventPage() {
             <select
               required
               value={formData.category}
-              onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+              onChange={(e) => handleCategoryChange(e.target.value)}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             >
               {EVENT_CATEGORIES.map(cat => (
@@ -142,9 +239,7 @@ function CreateEventPage() {
               <span className="text-sm text-gray-600">Color:</span>
               <div 
                 className="w-8 h-8 rounded-full border-2 border-gray-300"
-                style={{ 
-                  backgroundColor: EVENT_CATEGORIES.find(c => c.name === formData.category)?.color 
-                }}
+                style={{ backgroundColor: formData.color }}
               />
             </div>
           </div>
@@ -190,6 +285,73 @@ function CreateEventPage() {
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Enter event description (optional)"
             />
+          </div>
+
+          {/* Trainer Selection */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-semibold text-gray-700">
+                Assign Trainers
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAll}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  type="button"
+                  onClick={handleDeselectAll}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+            
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <p className="text-sm text-gray-600 mb-3">
+                Select trainers who will be assigned to this event 
+                ({formData.trainer_ids.length} selected)
+              </p>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-80 overflow-y-auto">
+                {trainers.map((trainer: any) => (
+                  <label
+                    key={trainer.id}
+                    className={`flex items-center space-x-3 p-3 rounded-lg border-2 cursor-pointer transition ${
+                      formData.trainer_ids.includes(trainer.id)
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.trainer_ids.includes(trainer.id)}
+                      onChange={() => handleTrainerToggle(trainer.id)}
+                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm text-gray-900 truncate">
+                        {trainer.name}
+                      </p>
+                      <p className="text-xs text-gray-600 truncate">
+                        {trainer.specialization || trainer.rank}
+                      </p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              
+              {trainers.length === 0 && (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No active trainers available
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
