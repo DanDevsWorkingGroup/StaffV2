@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 export function Auth({
   actionText,
   onSubmit,
@@ -9,6 +11,8 @@ export function Auth({
   status: 'pending' | 'idle' | 'success' | 'error'
   afterSubmit?: React.ReactNode
 }) {
+  const [showPassword, setShowPassword] = useState(false)
+
   return (
     <div className="fixed inset-0 bg-black flex items-center justify-center p-8">
       <div className="bg-gray-900 p-8 rounded-lg shadow-lg w-full max-w-md text-white">
@@ -36,13 +40,23 @@ export function Auth({
             <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
               Password
             </label>
-            <input
-              type="password"
-              name="password"
-              id="password"
-              className="px-3 py-2 w-full rounded border border-gray-700 bg-gray-800 text-white focus:outline-none focus:border-cyan-500 transition-colors"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                id="password"
+                className="px-3 py-2 w-full rounded border border-gray-700 bg-gray-800 text-white focus:outline-none focus:border-cyan-500 transition-colors pr-10"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-400 hover:text-gray-200"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <span className="text-xl">{showPassword ? '👁️' : '🔒'}</span>
+              </button>
+            </div>
           </div>
 
           <button
