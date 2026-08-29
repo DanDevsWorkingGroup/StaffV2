@@ -108,6 +108,8 @@ function EventsPage() {
   const { user } = Route.useRouteContext()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [selectedPastMonth, setSelectedPastMonth] = useState<string>('all')
+
 
   // RBAC: Check if user can create events
   // Only ADMIN, COORDINATOR, and EVENT COORDINATOR can create events
@@ -129,9 +131,25 @@ function EventsPage() {
     const now = new Date()
     return start <= now && end >= now
   })
-  const pastEvents = filteredEvents
+
+  const pastEventsAll = filteredEvents
   .filter((e: any) => new Date(e.end_date) < new Date())
   .sort((a: any, b: any) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())
+
+const pastEventMonths = Array.from(
+  new Set(pastEventsAll.map((e: any) => {
+    const d = new Date(e.end_date)
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  }))
+).sort((a, b) => b.localeCompare(a)) // most recent month first
+
+const pastEvents = selectedPastMonth === 'all'
+  ? pastEventsAll
+  : pastEventsAll.filter((e: any) => {
+      const d = new Date(e.end_date)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      return key === selectedPastMonth
+    })
 
 
   return (
@@ -207,7 +225,7 @@ function EventsPage() {
         />
         <StatCard
           title="Past Events"
-          value={pastEvents.length}
+          value={pastEventsAll.length}
           icon="✅"
           color="bg-gray-500"
         />
@@ -226,9 +244,24 @@ function EventsPage() {
         )}
 
         {/* Past Events */}
-        {pastEvents.length > 0 && (
-          <EventSection title="Past Events" events={pastEvents} />
-        )}
+{pastEventsAll.length > 0 && (
+  <EventSection
+    title="Past Events"
+    events={pastEvents}
+    filterControl={
+      <select
+        value={selectedPastMonth}
+        onChange={(e) => setSelectedPastMonth(e.target.value)}
+        className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="all">All Months</option>
+        {pastEventMonths.map((key) => (
+          <option key={key} value={key}>{formatMonthLabel(key)}</option>
+        ))}
+      </select>
+    }
+  />
+)}
 
         {/* No Results */}
         {filteredEvents.length === 0 && (
@@ -241,6 +274,11 @@ function EventsPage() {
       </div>
     </div>
   )
+}
+
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number)
+  return new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
 }
 
 // Stat Card Component
@@ -266,17 +304,22 @@ function StatCard({ title, value, icon, color }: {
 }
 
 // Event Section Component
-function EventSection({ title, events }: { title: string; events: any[] }) {
+function EventSection({ title, events, filterControl }: { title: string; events: any[]; filterControl?: React.ReactNode }) {
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="bg-gray-50 px-6 py-4 border-b">
+      <div className="bg-gray-50 px-6 py-4 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        {filterControl}
       </div>
-      <div className="divide-y">
-        {events.map((event: any) => (
-          <EventCard key={event.id} event={event} />
-        ))}
-      </div>
+      {events.length > 0 ? (
+        <div className="divide-y">
+          {events.map((event: any) => (
+            <EventCard key={event.id} event={event} />
+          ))}
+        </div>
+      ) : (
+        <div className="p-6 text-center text-gray-500 text-sm">No events found for this month</div>
+      )}
     </div>
   )
 }
