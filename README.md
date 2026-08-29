@@ -38,7 +38,27 @@ npm run dev
 | `npm run typecheck` | `tsc --noEmit`                                        |
 | `npm test`          | Unit tests for the D1 query layer (real SQLite)       |
 | `npm run smoke`     | Logs in per role against a deployment, checks routes  |
-| `npm run deploy`    | Build and deploy to Cloudflare                        |
+| `npm run deploy`    | Build and deploy by hand (see Deployment below)        |
+
+## Deployment
+
+Pushes to `main` are built and deployed automatically by
+[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/), which
+is connected to this repository. It runs:
+
+```sh
+npm run build      # build command
+npx wrangler deploy  # deploy command
+```
+
+No Cloudflare credentials are stored in GitHub. The `CI` workflow only
+typechecks, tests and builds.
+
+The Worker name in the Cloudflare dashboard must match the `name` field in
+`wrangler.jsonc` (`abpm-trainer`), or the build fails.
+
+To deploy by hand — say, from a branch — run `npm run deploy` with your own
+`wrangler login`.
 
 ## Layout
 
