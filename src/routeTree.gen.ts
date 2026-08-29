@@ -16,6 +16,7 @@ import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedPostsRouteImport } from './routes/_authed/posts'
 import { Route as AuthedTestRbacRouteImport } from './routes/_authed/test-rbac'
+import { Route as AuthedUserGuideRouteImport } from './routes/_authed/user-guide'
 import { Route as AuthedDormitoryIndexRouteImport } from './routes/_authed/dormitory/index'
 import { Route as AuthedEventsIndexRouteImport } from './routes/_authed/events/index'
 import { Route as AuthedEventsIdRouteImport } from './routes/_authed/events/$id'
@@ -67,6 +68,11 @@ const AuthedPostsRoute = AuthedPostsRouteImport.update({
 const AuthedTestRbacRoute = AuthedTestRbacRouteImport.update({
   id: '/test-rbac',
   path: '/test-rbac',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedUserGuideRoute = AuthedUserGuideRouteImport.update({
+  id: '/user-guide',
+  path: '/user-guide',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedDormitoryIndexRoute = AuthedDormitoryIndexRouteImport.update({
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/posts': typeof AuthedPostsRouteWithChildren
   '/test-rbac': typeof AuthedTestRbacRoute
+  '/user-guide': typeof AuthedUserGuideRoute
   '/events/$id': typeof AuthedEventsIdRoute
   '/events/create': typeof AuthedEventsCreateRoute
   '/physical-training/$id': typeof AuthedPhysicalTrainingIdRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/logout': typeof LogoutRoute
   '/signup': typeof SignupRoute
   '/test-rbac': typeof AuthedTestRbacRoute
+  '/user-guide': typeof AuthedUserGuideRoute
   '/': typeof AuthedIndexRoute
   '/events/$id': typeof AuthedEventsIdRoute
   '/events/create': typeof AuthedEventsCreateRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/_authed/posts': typeof AuthedPostsRouteWithChildren
   '/_authed/test-rbac': typeof AuthedTestRbacRoute
+  '/_authed/user-guide': typeof AuthedUserGuideRoute
   '/_authed/': typeof AuthedIndexRoute
   '/_authed/events/$id': typeof AuthedEventsIdRoute
   '/_authed/events/create': typeof AuthedEventsCreateRoute
@@ -256,6 +265,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/posts'
     | '/test-rbac'
+    | '/user-guide'
     | '/events/$id'
     | '/events/create'
     | '/physical-training/$id'
@@ -280,6 +290,7 @@ export interface FileRouteTypes {
     | '/logout'
     | '/signup'
     | '/test-rbac'
+    | '/user-guide'
     | '/'
     | '/events/$id'
     | '/events/create'
@@ -307,6 +318,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/_authed/posts'
     | '/_authed/test-rbac'
+    | '/_authed/user-guide'
     | '/_authed/'
     | '/_authed/events/$id'
     | '/_authed/events/create'
@@ -384,6 +396,13 @@ declare module '@tanstack/react-router' {
       path: '/test-rbac'
       fullPath: '/test-rbac'
       preLoaderRoute: typeof AuthedTestRbacRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/user-guide': {
+      id: '/_authed/user-guide'
+      path: '/user-guide'
+      fullPath: '/user-guide'
+      preLoaderRoute: typeof AuthedUserGuideRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/dormitory/': {
@@ -532,6 +551,7 @@ const AuthedPostsRouteWithChildren = AuthedPostsRoute._addFileChildren(
 interface AuthedRouteChildren {
   AuthedPostsRoute: typeof AuthedPostsRouteWithChildren
   AuthedTestRbacRoute: typeof AuthedTestRbacRoute
+  AuthedUserGuideRoute: typeof AuthedUserGuideRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedEventsIdRoute: typeof AuthedEventsIdRoute
   AuthedEventsCreateRoute: typeof AuthedEventsCreateRoute
@@ -554,6 +574,7 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPostsRoute: AuthedPostsRouteWithChildren,
   AuthedTestRbacRoute: AuthedTestRbacRoute,
+  AuthedUserGuideRoute: AuthedUserGuideRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedEventsIdRoute: AuthedEventsIdRoute,
   AuthedEventsCreateRoute: AuthedEventsCreateRoute,

@@ -264,6 +264,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                           <span className="font-medium">My Profile</span>
                         </Link>
 
+                        <Link
+                          to="/user-guide"
+                          className="flex items-center space-x-3 px-4 py-3 hover:bg-gray-100 transition text-gray-700"
+                        >
+                          <span className="text-xl">📖</span>
+                          <span className="font-medium">User Guide</span>
+                        </Link>
+
                         <div className="border-t border-gray-200 my-2"></div>
 
                         <Link
@@ -324,6 +332,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                         to="/profile"
                         label="My Profile"
                         icon="👤"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      />
+                      <MobileNavLink
+                        to="/user-guide"
+                        label="User Guide"
+                        icon="📖"
                         onClick={() => setIsMobileMenuOpen(false)}
                       />
                     </>
