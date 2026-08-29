@@ -1,18 +1,19 @@
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import { defineConfig } from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
+import { cloudflare } from '@cloudflare/vite-plugin'
+import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
-import { nitro } from 'nitro/vite' // <-- Add this import
 
 export default defineConfig({
+  server: {
+    port: 3000,
+  },
   plugins: [
     tsConfigPaths({
       projects: ['./tsconfig.json'],
     }),
+    cloudflare({ viteEnvironment: { name: 'ssr' } }),
     tanstackStart(),
     viteReact(),
-    nitro({ 
-      preset: 'node-server' // This fixes the "Exit Code 0" issue
-    }),
   ],
 })

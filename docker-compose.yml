@@ -1,9 +1,0 @@
-services:
-  abpm-trainer:
-    image: ghcr.io/danisworkingnow/stafftrainerdev:latest
-    container_name: abpm-trainer
-    restart: always
-    ports:
-      - "127.0.0.1:9009:3000"
-    env_file:
-      - .env

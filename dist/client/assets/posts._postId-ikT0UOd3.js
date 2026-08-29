@@ -1,1 +1,0 @@
-import{t as e,j as s}from"./main-0TgHznNF.js";function n(){const t=e.useLoaderData();return s.jsxs("div",{className:"space-y-2",children:[s.jsx("h4",{className:"text-xl font-bold underline",children:t.title}),s.jsx("div",{className:"text-sm",children:t.body})]})}export{n as component};

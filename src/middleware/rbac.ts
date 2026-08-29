@@ -1,18 +1,19 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getSupabaseServerClient } from '~/utils/supabase'
+import { all, first } from '~/utils/db'
+import { getSessionUser } from '~/utils/auth'
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
 // UPDATED: Added 4 new specialized coordinator roles
-export type UserRole = 
-  | 'ADMIN' 
-  | 'COORDINATOR' 
-  | 'EVENT COORDINATOR'      // New: Events module admin
-  | 'PT COORDINATOR'         // New: Physical Training module admin
-  | 'RA COORDINATOR'         // New: Religious Activities module admin
-  | 'DORMITORY COORDINATOR'  // New: Dormitory module admin
+export type UserRole =
+  | 'ADMIN'
+  | 'COORDINATOR'
+  | 'EVENT COORDINATOR'      // Events module admin
+  | 'PT COORDINATOR'         // Physical Training module admin
+  | 'RA COORDINATOR'         // Religious Activities module admin
+  | 'DORMITORY COORDINATOR'  // Dormitory module admin
   | 'TRAINER'
 
 export type Permission = {
@@ -22,7 +23,9 @@ export type Permission = {
 
 export type UserRoleData = {
   userId: string
-  trainerId: string
+  // `trainers.id` is an integer, and callers compare it against the integer ids
+  // inside `participants` arrays, so this must stay numeric.
+  trainerId: number
   email: string
   name: string
   role: UserRole
@@ -32,7 +35,7 @@ export type UserRoleData = {
 }
 
 // ============================================================================
-// SERVER-SIDE FUNCTIONS (Original functions - unchanged)
+// SERVER-SIDE FUNCTIONS
 // ============================================================================
 
 /**
@@ -40,72 +43,61 @@ export type UserRoleData = {
  */
 export const getCurrentUserRole = createServerFn({ method: 'GET' }).handler(
   async (): Promise<UserRoleData | null> => {
-    const supabase = getSupabaseServerClient()
+    const user = await getSessionUser()
 
-    // Get authenticated user
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
+    if (!user) {
       return null
     }
 
-    // Get trainer profile with role
-    const { data: trainerData, error: trainerError } = await supabase
-      .from('trainers')
-      .select('id, name, role_id, rank')
-      .eq('user_id', user.id)
-      .single()
+    // Trainer profile joined to its role in one round trip
+    const profile = await first<{
+      trainer_id: number
+      name: string
+      rank: string | null
+      role_id: string | null
+      role_name: string | null
+      role_level: number | null
+    }>(
+      `SELECT t.id AS trainer_id, t.name AS name, t.rank AS rank,
+              t.role_id AS role_id, r.name AS role_name, r.level AS role_level
+         FROM trainers t
+         LEFT JOIN roles r ON r.id = t.role_id
+        WHERE t.user_id = ?`,
+      user.id,
+    )
 
-    if (trainerError || !trainerData) {
-      console.error('Error fetching trainer data:', trainerError)
+    if (!profile) {
+      console.error('No trainer profile for user', user.id)
       return null
     }
 
-    // Get role data separately
-    const { data: roleData, error: roleError } = await supabase
-      .from('roles')
-      .select('id, name, level')
-      .eq('id', trainerData.role_id)
-      .single()
-
-    if (roleError || !roleData) {
-      console.error('Error fetching role data:', roleError)
+    if (!profile.role_id || !profile.role_name) {
+      console.error('No role assigned to trainer', profile.trainer_id)
       return null
     }
 
-    // Get permissions for this role
-    const { data: permissionsData } = await supabase
-      .from('role_permissions')
-      .select(
-        `
-        permission:permissions (
-          resource,
-          action
-        )
-      `
-      )
-      .eq('role_id', roleData.id)
-
-    const permissions: Permission[] =
-      permissionsData?.map((rp: any) => ({
-        resource: rp.permission.resource,
-        action: rp.permission.action,
-      })) || []
+    const permissionRows = await all<{ resource: string; action: Permission['action'] }>(
+      `SELECT p.resource AS resource, p.action AS action
+         FROM role_permissions rp
+         JOIN permissions p ON p.id = rp.permission_id
+        WHERE rp.role_id = ?`,
+      profile.role_id,
+    )
 
     return {
       userId: user.id,
-      trainerId: trainerData.id,
-      email: user.email || '',
-      name: trainerData.name,
-      role: roleData.name as UserRole,
-      roleLevel: roleData.level,
-      rank: trainerData.rank,
-      permissions,
+      trainerId: profile.trainer_id,
+      email: user.email,
+      name: profile.name,
+      role: profile.role_name as UserRole,
+      roleLevel: profile.role_level ?? 0,
+      rank: profile.rank ?? undefined,
+      permissions: permissionRows.map((p) => ({
+        resource: p.resource,
+        action: p.action,
+      })),
     }
-  }
+  },
 )
 
 /**
@@ -146,7 +138,7 @@ export const hasPermission = createServerFn({ method: 'GET' })
 
     // Check specific permission
     return userData.permissions.some(
-      (p) => p.resource === data.resource && p.action === data.action
+      (p) => p.resource === data.resource && p.action === data.action,
     )
   })
 
@@ -172,7 +164,7 @@ export const isAdmin = createServerFn({ method: 'GET' }).handler(
   async (): Promise<boolean> => {
     const userData = await getCurrentUserRole()
     return userData?.role === 'ADMIN' || false
-  }
+  },
 )
 
 /**
@@ -183,7 +175,7 @@ export const isCoordinatorOrAbove = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return userData.role === 'ADMIN' || userData.role === 'COORDINATOR'
-  }
+  },
 )
 
 /**
@@ -193,11 +185,11 @@ export const isTrainer = createServerFn({ method: 'GET' }).handler(
   async (): Promise<boolean> => {
     const userData = await getCurrentUserRole()
     return userData?.role === 'TRAINER' || false
-  }
+  },
 )
 
 // ============================================================================
-// NEW: CLIENT-SIDE HELPER FUNCTIONS FOR UI RENDERING
+// CLIENT-SIDE HELPER FUNCTIONS FOR UI RENDERING
 // These functions are used in components to show/hide UI elements
 // ============================================================================
 
@@ -264,7 +256,7 @@ export function canAccessOverviewClient(role: UserRole): boolean {
 }
 
 // ============================================================================
-// NEW: SERVER-SIDE SECURITY FUNCTIONS FOR API PROTECTION
+// SERVER-SIDE SECURITY FUNCTIONS FOR API PROTECTION
 // These functions are used in API routes to verify access
 // ============================================================================
 
@@ -277,7 +269,7 @@ export const canAccessDormitory = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return canAccessDormitoryClient(userData.role)
-  }
+  },
 )
 
 /**
@@ -288,7 +280,7 @@ export const canAccessEvents = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return canAccessEventsClient(userData.role)
-  }
+  },
 )
 
 /**
@@ -299,7 +291,7 @@ export const canAccessPT = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return canAccessPTClient(userData.role)
-  }
+  },
 )
 
 /**
@@ -310,7 +302,7 @@ export const canAccessReligious = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return canAccessReligiousClient(userData.role)
-  }
+  },
 )
 
 /**
@@ -321,7 +313,7 @@ export const canAccessOverview = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return canAccessOverviewClient(userData.role)
-  }
+  },
 )
 
 /**
@@ -336,7 +328,7 @@ export const canManageModule = createServerFn({ method: 'GET' })
   })
 
 // ============================================================================
-// NEW: SPECIALIZED COORDINATOR CHECK FUNCTIONS
+// SPECIALIZED COORDINATOR CHECK FUNCTIONS
 // ============================================================================
 
 /**
@@ -347,7 +339,7 @@ export const isEventCoordinator = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'].includes(userData.role)
-  }
+  },
 )
 
 /**
@@ -358,7 +350,7 @@ export const isPTCoordinator = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return ['ADMIN', 'COORDINATOR', 'PT COORDINATOR'].includes(userData.role)
-  }
+  },
 )
 
 /**
@@ -369,7 +361,7 @@ export const isRACoordinator = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return ['ADMIN', 'COORDINATOR', 'RA COORDINATOR'].includes(userData.role)
-  }
+  },
 )
 
 /**
@@ -380,40 +372,5 @@ export const isDormitoryCoordinator = createServerFn({ method: 'GET' }).handler(
     const userData = await getCurrentUserRole()
     if (!userData) return false
     return ['ADMIN', 'COORDINATOR', 'DORMITORY COORDINATOR'].includes(userData.role)
-  }
+  },
 )
-
-// ============================================================================
-// EXPORTS SUMMARY
-// ============================================================================
-// Types: UserRole, Permission, UserRoleData
-//
-// Original Server Functions:
-// - getCurrentUserRole() - Get user role and permissions
-// - requireRole() - Require specific role (throws error)
-// - hasPermission() - Check specific permission
-// - requirePermission() - Require specific permission (throws error)
-// - isAdmin() - Check if ADMIN
-// - isCoordinatorOrAbove() - Check if COORDINATOR or ADMIN
-// - isTrainer() - Check if TRAINER
-//
-// New Client-Side Functions (for UI):
-// - canAccessDormitoryClient() - Check dormitory access
-// - canAccessEventsClient() - Check events access
-// - canAccessPTClient() - Check PT access
-// - canAccessReligiousClient() - Check religious access
-// - canManageModuleClient() - Generic module check
-// - canAccessOverviewClient() - Check overview access
-//
-// New Server Functions (for API):
-// - canAccessDormitory() - Server: Check dormitory access
-// - canAccessEvents() - Server: Check events access
-// - canAccessPT() - Server: Check PT access
-// - canAccessReligious() - Server: Check religious access
-// - canAccessOverview() - Server: Check overview access
-// - canManageModule() - Server: Generic module check
-// - isEventCoordinator() - Check if EVENT COORDINATOR
-// - isPTCoordinator() - Check if PT COORDINATOR
-// - isRACoordinator() - Check if RA COORDINATOR
-// - isDormitoryCoordinator() - Check if DORMITORY COORDINATOR
-// ============================================================================

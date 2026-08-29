@@ -9,40 +9,34 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as LogoutRouteImport } from './routes/logout'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedRouteImport } from './routes/_authed'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as LogoutRouteImport } from './routes/logout'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
-import { Route as AuthedTestRbacRouteImport } from './routes/_authed/test-rbac'
 import { Route as AuthedPostsRouteImport } from './routes/_authed/posts'
-import { Route as AuthedTrainerOverviewIndexRouteImport } from './routes/_authed/trainer-overview/index'
-import { Route as AuthedScheduleIndexRouteImport } from './routes/_authed/schedule/index'
-import { Route as AuthedReligiousActivityIndexRouteImport } from './routes/_authed/religious-activity/index'
-import { Route as AuthedProfileIndexRouteImport } from './routes/_authed/profile/index'
-import { Route as AuthedPostsIndexRouteImport } from './routes/_authed/posts.index'
-import { Route as AuthedPhysicalTrainingIndexRouteImport } from './routes/_authed/physical-training/index'
-import { Route as AuthedEventsIndexRouteImport } from './routes/_authed/events/index'
+import { Route as AuthedTestRbacRouteImport } from './routes/_authed/test-rbac'
 import { Route as AuthedDormitoryIndexRouteImport } from './routes/_authed/dormitory/index'
-import { Route as AuthedTrainerOverviewIdRouteImport } from './routes/_authed/trainer-overview/$id'
-import { Route as AuthedReligiousActivityIdRouteImport } from './routes/_authed/religious-activity/$id'
-import { Route as AuthedPostsPostIdRouteImport } from './routes/_authed/posts.$postId'
-import { Route as AuthedPhysicalTrainingIdRouteImport } from './routes/_authed/physical-training/$id'
-import { Route as AuthedEventsCreateRouteImport } from './routes/_authed/events/create'
+import { Route as AuthedEventsIndexRouteImport } from './routes/_authed/events/index'
 import { Route as AuthedEventsIdRouteImport } from './routes/_authed/events/$id'
-import { Route as AuthedTrainerOverviewEditIdRouteImport } from './routes/_authed/trainer-overview/edit.$id'
-import { Route as AuthedReligiousActivityEditIdRouteImport } from './routes/_authed/religious-activity/edit.$id'
-import { Route as AuthedPhysicalTrainingEditIdRouteImport } from './routes/_authed/physical-training/edit.$id'
+import { Route as AuthedEventsCreateRouteImport } from './routes/_authed/events/create'
+import { Route as AuthedPhysicalTrainingIndexRouteImport } from './routes/_authed/physical-training/index'
+import { Route as AuthedPhysicalTrainingIdRouteImport } from './routes/_authed/physical-training/$id'
+import { Route as AuthedPostsIndexRouteImport } from './routes/_authed/posts.index'
+import { Route as AuthedPostsPostIdRouteImport } from './routes/_authed/posts.$postId'
+import { Route as AuthedProfileIndexRouteImport } from './routes/_authed/profile/index'
+import { Route as AuthedReligiousActivityIndexRouteImport } from './routes/_authed/religious-activity/index'
+import { Route as AuthedReligiousActivityIdRouteImport } from './routes/_authed/religious-activity/$id'
+import { Route as AuthedScheduleIndexRouteImport } from './routes/_authed/schedule/index'
+import { Route as AuthedTrainerOverviewIndexRouteImport } from './routes/_authed/trainer-overview/index'
+import { Route as AuthedTrainerOverviewIdRouteImport } from './routes/_authed/trainer-overview/$id'
 import { Route as AuthedEventsEditIdRouteImport } from './routes/_authed/events/edit.$id'
+import { Route as AuthedPhysicalTrainingEditIdRouteImport } from './routes/_authed/physical-training/edit.$id'
+import { Route as AuthedReligiousActivityEditIdRouteImport } from './routes/_authed/religious-activity/edit.$id'
+import { Route as AuthedTrainerOverviewEditIdRouteImport } from './routes/_authed/trainer-overview/edit.$id'
 
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LogoutRoute = LogoutRouteImport.update({
-  id: '/logout',
-  path: '/logout',
+const AuthedRoute = AuthedRouteImport.update({
+  id: '/_authed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -50,8 +44,14 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthedRoute = AuthedRouteImport.update({
-  id: '/_authed',
+const LogoutRoute = LogoutRouteImport.update({
+  id: '/logout',
+  path: '/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
@@ -59,25 +59,61 @@ const AuthedIndexRoute = AuthedIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedTestRbacRoute = AuthedTestRbacRouteImport.update({
-  id: '/test-rbac',
-  path: '/test-rbac',
-  getParentRoute: () => AuthedRoute,
-} as any)
 const AuthedPostsRoute = AuthedPostsRouteImport.update({
   id: '/posts',
   path: '/posts',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedTrainerOverviewIndexRoute =
-  AuthedTrainerOverviewIndexRouteImport.update({
-    id: '/trainer-overview/',
-    path: '/trainer-overview/',
+const AuthedTestRbacRoute = AuthedTestRbacRouteImport.update({
+  id: '/test-rbac',
+  path: '/test-rbac',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedDormitoryIndexRoute = AuthedDormitoryIndexRouteImport.update({
+  id: '/dormitory/',
+  path: '/dormitory/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedEventsIndexRoute = AuthedEventsIndexRouteImport.update({
+  id: '/events/',
+  path: '/events/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedEventsIdRoute = AuthedEventsIdRouteImport.update({
+  id: '/events/$id',
+  path: '/events/$id',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedEventsCreateRoute = AuthedEventsCreateRouteImport.update({
+  id: '/events/create',
+  path: '/events/create',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedPhysicalTrainingIndexRoute =
+  AuthedPhysicalTrainingIndexRouteImport.update({
+    id: '/physical-training/',
+    path: '/physical-training/',
     getParentRoute: () => AuthedRoute,
   } as any)
-const AuthedScheduleIndexRoute = AuthedScheduleIndexRouteImport.update({
-  id: '/schedule/',
-  path: '/schedule/',
+const AuthedPhysicalTrainingIdRoute =
+  AuthedPhysicalTrainingIdRouteImport.update({
+    id: '/physical-training/$id',
+    path: '/physical-training/$id',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedPostsIndexRoute = AuthedPostsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthedPostsRoute,
+} as any)
+const AuthedPostsPostIdRoute = AuthedPostsPostIdRouteImport.update({
+  id: '/$postId',
+  path: '/$postId',
+  getParentRoute: () => AuthedPostsRoute,
+} as any)
+const AuthedProfileIndexRoute = AuthedProfileIndexRouteImport.update({
+  id: '/profile/',
+  path: '/profile/',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedReligiousActivityIndexRoute =
@@ -86,68 +122,37 @@ const AuthedReligiousActivityIndexRoute =
     path: '/religious-activity/',
     getParentRoute: () => AuthedRoute,
   } as any)
-const AuthedProfileIndexRoute = AuthedProfileIndexRouteImport.update({
-  id: '/profile/',
-  path: '/profile/',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedPostsIndexRoute = AuthedPostsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthedPostsRoute,
-} as any)
-const AuthedPhysicalTrainingIndexRoute =
-  AuthedPhysicalTrainingIndexRouteImport.update({
-    id: '/physical-training/',
-    path: '/physical-training/',
-    getParentRoute: () => AuthedRoute,
-  } as any)
-const AuthedEventsIndexRoute = AuthedEventsIndexRouteImport.update({
-  id: '/events/',
-  path: '/events/',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedDormitoryIndexRoute = AuthedDormitoryIndexRouteImport.update({
-  id: '/dormitory/',
-  path: '/dormitory/',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedTrainerOverviewIdRoute = AuthedTrainerOverviewIdRouteImport.update({
-  id: '/trainer-overview/$id',
-  path: '/trainer-overview/$id',
-  getParentRoute: () => AuthedRoute,
-} as any)
 const AuthedReligiousActivityIdRoute =
   AuthedReligiousActivityIdRouteImport.update({
     id: '/religious-activity/$id',
     path: '/religious-activity/$id',
     getParentRoute: () => AuthedRoute,
   } as any)
-const AuthedPostsPostIdRoute = AuthedPostsPostIdRouteImport.update({
-  id: '/$postId',
-  path: '/$postId',
-  getParentRoute: () => AuthedPostsRoute,
+const AuthedScheduleIndexRoute = AuthedScheduleIndexRouteImport.update({
+  id: '/schedule/',
+  path: '/schedule/',
+  getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedPhysicalTrainingIdRoute =
-  AuthedPhysicalTrainingIdRouteImport.update({
-    id: '/physical-training/$id',
-    path: '/physical-training/$id',
+const AuthedTrainerOverviewIndexRoute =
+  AuthedTrainerOverviewIndexRouteImport.update({
+    id: '/trainer-overview/',
+    path: '/trainer-overview/',
     getParentRoute: () => AuthedRoute,
   } as any)
-const AuthedEventsCreateRoute = AuthedEventsCreateRouteImport.update({
-  id: '/events/create',
-  path: '/events/create',
+const AuthedTrainerOverviewIdRoute = AuthedTrainerOverviewIdRouteImport.update({
+  id: '/trainer-overview/$id',
+  path: '/trainer-overview/$id',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedEventsIdRoute = AuthedEventsIdRouteImport.update({
-  id: '/events/$id',
-  path: '/events/$id',
+const AuthedEventsEditIdRoute = AuthedEventsEditIdRouteImport.update({
+  id: '/events/edit/$id',
+  path: '/events/edit/$id',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedTrainerOverviewEditIdRoute =
-  AuthedTrainerOverviewEditIdRouteImport.update({
-    id: '/trainer-overview/edit/$id',
-    path: '/trainer-overview/edit/$id',
+const AuthedPhysicalTrainingEditIdRoute =
+  AuthedPhysicalTrainingEditIdRouteImport.update({
+    id: '/physical-training/edit/$id',
+    path: '/physical-training/edit/$id',
     getParentRoute: () => AuthedRoute,
   } as any)
 const AuthedReligiousActivityEditIdRoute =
@@ -156,39 +161,34 @@ const AuthedReligiousActivityEditIdRoute =
     path: '/religious-activity/edit/$id',
     getParentRoute: () => AuthedRoute,
   } as any)
-const AuthedPhysicalTrainingEditIdRoute =
-  AuthedPhysicalTrainingEditIdRouteImport.update({
-    id: '/physical-training/edit/$id',
-    path: '/physical-training/edit/$id',
+const AuthedTrainerOverviewEditIdRoute =
+  AuthedTrainerOverviewEditIdRouteImport.update({
+    id: '/trainer-overview/edit/$id',
+    path: '/trainer-overview/edit/$id',
     getParentRoute: () => AuthedRoute,
   } as any)
-const AuthedEventsEditIdRoute = AuthedEventsEditIdRouteImport.update({
-  id: '/events/edit/$id',
-  path: '/events/edit/$id',
-  getParentRoute: () => AuthedRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
+  '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
   '/signup': typeof SignupRoute
   '/posts': typeof AuthedPostsRouteWithChildren
   '/test-rbac': typeof AuthedTestRbacRoute
-  '/': typeof AuthedIndexRoute
   '/events/$id': typeof AuthedEventsIdRoute
   '/events/create': typeof AuthedEventsCreateRoute
   '/physical-training/$id': typeof AuthedPhysicalTrainingIdRoute
   '/posts/$postId': typeof AuthedPostsPostIdRoute
   '/religious-activity/$id': typeof AuthedReligiousActivityIdRoute
   '/trainer-overview/$id': typeof AuthedTrainerOverviewIdRoute
-  '/dormitory': typeof AuthedDormitoryIndexRoute
-  '/events': typeof AuthedEventsIndexRoute
-  '/physical-training': typeof AuthedPhysicalTrainingIndexRoute
+  '/dormitory/': typeof AuthedDormitoryIndexRoute
+  '/events/': typeof AuthedEventsIndexRoute
+  '/physical-training/': typeof AuthedPhysicalTrainingIndexRoute
   '/posts/': typeof AuthedPostsIndexRoute
-  '/profile': typeof AuthedProfileIndexRoute
-  '/religious-activity': typeof AuthedReligiousActivityIndexRoute
-  '/schedule': typeof AuthedScheduleIndexRoute
-  '/trainer-overview': typeof AuthedTrainerOverviewIndexRoute
+  '/profile/': typeof AuthedProfileIndexRoute
+  '/religious-activity/': typeof AuthedReligiousActivityIndexRoute
+  '/schedule/': typeof AuthedScheduleIndexRoute
+  '/trainer-overview/': typeof AuthedTrainerOverviewIndexRoute
   '/events/edit/$id': typeof AuthedEventsEditIdRoute
   '/physical-training/edit/$id': typeof AuthedPhysicalTrainingEditIdRoute
   '/religious-activity/edit/$id': typeof AuthedReligiousActivityEditIdRoute
@@ -250,26 +250,26 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
+    | '/'
     | '/login'
     | '/logout'
     | '/signup'
     | '/posts'
     | '/test-rbac'
-    | '/'
     | '/events/$id'
     | '/events/create'
     | '/physical-training/$id'
     | '/posts/$postId'
     | '/religious-activity/$id'
     | '/trainer-overview/$id'
-    | '/dormitory'
-    | '/events'
-    | '/physical-training'
+    | '/dormitory/'
+    | '/events/'
+    | '/physical-training/'
     | '/posts/'
-    | '/profile'
-    | '/religious-activity'
-    | '/schedule'
-    | '/trainer-overview'
+    | '/profile/'
+    | '/religious-activity/'
+    | '/schedule/'
+    | '/trainer-overview/'
     | '/events/edit/$id'
     | '/physical-training/edit/$id'
     | '/religious-activity/edit/$id'
@@ -337,18 +337,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/logout': {
-      id: '/logout'
-      path: '/logout'
-      fullPath: '/logout'
-      preLoaderRoute: typeof LogoutRouteImport
+    '/_authed': {
+      id: '/_authed'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -358,11 +351,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authed': {
-      id: '/_authed'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof AuthedRouteImport
+    '/logout': {
+      id: '/logout'
+      path: '/logout'
+      fullPath: '/logout'
+      preLoaderRoute: typeof LogoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/': {
@@ -372,13 +372,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/test-rbac': {
-      id: '/_authed/test-rbac'
-      path: '/test-rbac'
-      fullPath: '/test-rbac'
-      preLoaderRoute: typeof AuthedTestRbacRouteImport
-      parentRoute: typeof AuthedRoute
-    }
     '/_authed/posts': {
       id: '/_authed/posts'
       path: '/posts'
@@ -386,95 +379,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPostsRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/trainer-overview/': {
-      id: '/_authed/trainer-overview/'
-      path: '/trainer-overview'
-      fullPath: '/trainer-overview'
-      preLoaderRoute: typeof AuthedTrainerOverviewIndexRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/schedule/': {
-      id: '/_authed/schedule/'
-      path: '/schedule'
-      fullPath: '/schedule'
-      preLoaderRoute: typeof AuthedScheduleIndexRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/religious-activity/': {
-      id: '/_authed/religious-activity/'
-      path: '/religious-activity'
-      fullPath: '/religious-activity'
-      preLoaderRoute: typeof AuthedReligiousActivityIndexRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/profile/': {
-      id: '/_authed/profile/'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof AuthedProfileIndexRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/posts/': {
-      id: '/_authed/posts/'
-      path: '/'
-      fullPath: '/posts/'
-      preLoaderRoute: typeof AuthedPostsIndexRouteImport
-      parentRoute: typeof AuthedPostsRoute
-    }
-    '/_authed/physical-training/': {
-      id: '/_authed/physical-training/'
-      path: '/physical-training'
-      fullPath: '/physical-training'
-      preLoaderRoute: typeof AuthedPhysicalTrainingIndexRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/events/': {
-      id: '/_authed/events/'
-      path: '/events'
-      fullPath: '/events'
-      preLoaderRoute: typeof AuthedEventsIndexRouteImport
+    '/_authed/test-rbac': {
+      id: '/_authed/test-rbac'
+      path: '/test-rbac'
+      fullPath: '/test-rbac'
+      preLoaderRoute: typeof AuthedTestRbacRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/dormitory/': {
       id: '/_authed/dormitory/'
       path: '/dormitory'
-      fullPath: '/dormitory'
+      fullPath: '/dormitory/'
       preLoaderRoute: typeof AuthedDormitoryIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/trainer-overview/$id': {
-      id: '/_authed/trainer-overview/$id'
-      path: '/trainer-overview/$id'
-      fullPath: '/trainer-overview/$id'
-      preLoaderRoute: typeof AuthedTrainerOverviewIdRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/religious-activity/$id': {
-      id: '/_authed/religious-activity/$id'
-      path: '/religious-activity/$id'
-      fullPath: '/religious-activity/$id'
-      preLoaderRoute: typeof AuthedReligiousActivityIdRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/posts/$postId': {
-      id: '/_authed/posts/$postId'
-      path: '/$postId'
-      fullPath: '/posts/$postId'
-      preLoaderRoute: typeof AuthedPostsPostIdRouteImport
-      parentRoute: typeof AuthedPostsRoute
-    }
-    '/_authed/physical-training/$id': {
-      id: '/_authed/physical-training/$id'
-      path: '/physical-training/$id'
-      fullPath: '/physical-training/$id'
-      preLoaderRoute: typeof AuthedPhysicalTrainingIdRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/events/create': {
-      id: '/_authed/events/create'
-      path: '/events/create'
-      fullPath: '/events/create'
-      preLoaderRoute: typeof AuthedEventsCreateRouteImport
+    '/_authed/events/': {
+      id: '/_authed/events/'
+      path: '/events'
+      fullPath: '/events/'
+      preLoaderRoute: typeof AuthedEventsIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/events/$id': {
@@ -484,18 +407,88 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedEventsIdRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/trainer-overview/edit/$id': {
-      id: '/_authed/trainer-overview/edit/$id'
-      path: '/trainer-overview/edit/$id'
-      fullPath: '/trainer-overview/edit/$id'
-      preLoaderRoute: typeof AuthedTrainerOverviewEditIdRouteImport
+    '/_authed/events/create': {
+      id: '/_authed/events/create'
+      path: '/events/create'
+      fullPath: '/events/create'
+      preLoaderRoute: typeof AuthedEventsCreateRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/religious-activity/edit/$id': {
-      id: '/_authed/religious-activity/edit/$id'
-      path: '/religious-activity/edit/$id'
-      fullPath: '/religious-activity/edit/$id'
-      preLoaderRoute: typeof AuthedReligiousActivityEditIdRouteImport
+    '/_authed/physical-training/': {
+      id: '/_authed/physical-training/'
+      path: '/physical-training'
+      fullPath: '/physical-training/'
+      preLoaderRoute: typeof AuthedPhysicalTrainingIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/physical-training/$id': {
+      id: '/_authed/physical-training/$id'
+      path: '/physical-training/$id'
+      fullPath: '/physical-training/$id'
+      preLoaderRoute: typeof AuthedPhysicalTrainingIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/posts/': {
+      id: '/_authed/posts/'
+      path: '/'
+      fullPath: '/posts/'
+      preLoaderRoute: typeof AuthedPostsIndexRouteImport
+      parentRoute: typeof AuthedPostsRoute
+    }
+    '/_authed/posts/$postId': {
+      id: '/_authed/posts/$postId'
+      path: '/$postId'
+      fullPath: '/posts/$postId'
+      preLoaderRoute: typeof AuthedPostsPostIdRouteImport
+      parentRoute: typeof AuthedPostsRoute
+    }
+    '/_authed/profile/': {
+      id: '/_authed/profile/'
+      path: '/profile'
+      fullPath: '/profile/'
+      preLoaderRoute: typeof AuthedProfileIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/religious-activity/': {
+      id: '/_authed/religious-activity/'
+      path: '/religious-activity'
+      fullPath: '/religious-activity/'
+      preLoaderRoute: typeof AuthedReligiousActivityIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/religious-activity/$id': {
+      id: '/_authed/religious-activity/$id'
+      path: '/religious-activity/$id'
+      fullPath: '/religious-activity/$id'
+      preLoaderRoute: typeof AuthedReligiousActivityIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/schedule/': {
+      id: '/_authed/schedule/'
+      path: '/schedule'
+      fullPath: '/schedule/'
+      preLoaderRoute: typeof AuthedScheduleIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/trainer-overview/': {
+      id: '/_authed/trainer-overview/'
+      path: '/trainer-overview'
+      fullPath: '/trainer-overview/'
+      preLoaderRoute: typeof AuthedTrainerOverviewIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/trainer-overview/$id': {
+      id: '/_authed/trainer-overview/$id'
+      path: '/trainer-overview/$id'
+      fullPath: '/trainer-overview/$id'
+      preLoaderRoute: typeof AuthedTrainerOverviewIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/events/edit/$id': {
+      id: '/_authed/events/edit/$id'
+      path: '/events/edit/$id'
+      fullPath: '/events/edit/$id'
+      preLoaderRoute: typeof AuthedEventsEditIdRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/physical-training/edit/$id': {
@@ -505,11 +498,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPhysicalTrainingEditIdRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/events/edit/$id': {
-      id: '/_authed/events/edit/$id'
-      path: '/events/edit/$id'
-      fullPath: '/events/edit/$id'
-      preLoaderRoute: typeof AuthedEventsEditIdRouteImport
+    '/_authed/religious-activity/edit/$id': {
+      id: '/_authed/religious-activity/edit/$id'
+      path: '/religious-activity/edit/$id'
+      fullPath: '/religious-activity/edit/$id'
+      preLoaderRoute: typeof AuthedReligiousActivityEditIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/trainer-overview/edit/$id': {
+      id: '/_authed/trainer-overview/edit/$id'
+      path: '/trainer-overview/edit/$id'
+      fullPath: '/trainer-overview/edit/$id'
+      preLoaderRoute: typeof AuthedTrainerOverviewEditIdRouteImport
       parentRoute: typeof AuthedRoute
     }
   }

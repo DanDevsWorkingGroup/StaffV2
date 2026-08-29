@@ -1,4 +1,5 @@
 node_modules
+
 # Keep environment variables out of version control
 !.env
 package-lock.json
@@ -12,9 +13,21 @@ yarn.lock
 /build/
 /api/
 /server/build
-/public/build# Sentry Config File
+/public/build
+
+# Sentry Config File
 .env.sentry-build-plugin
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Build output (was previously committed; Workers deploys build from source)
+dist/
+
+# Wrangler local state
+.wrangler/
+
+# Project-scoped wrangler credentials — contains an OAuth token, never commit
+.wrangler-home/
+.tanstack/
