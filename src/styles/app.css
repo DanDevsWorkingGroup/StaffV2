@@ -24,7 +24,59 @@
     @apply text-gray-900 bg-gray-50;
   }
 
-  .using-mouse * {
-    outline: none !important;
+  /*
+   * Keyboard focus stays visible; a mouse click does not leave a ring behind.
+   * This replaces the old `.using-mouse * { outline: none !important }`, which
+   * removed the ring for keyboard and switch-control users too.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-orange-600, #ea580c);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
+  .using-mouse :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/*
+ * Unlayered on purpose: it must beat Tailwind's `text-sm` utility on inputs.
+ *
+ * iOS Safari zooms the page in whenever a form control smaller than 16px gets
+ * focus, and never zooms back out. Force 16px on phones; the desktop `sm:`
+ * sizing is untouched.
+ */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }

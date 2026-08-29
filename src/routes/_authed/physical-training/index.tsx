@@ -3,6 +3,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
 import { getCurrentUserRole } from '~/middleware/rbac'
 import { useState, useMemo } from 'react'
+import { MonthCalendar, type CalItem } from '~/components/mobile'
 
 // Server functions
 const getPhysicalTrainingData = createServerFn({ method: 'GET' }).handler(async () => {
@@ -452,7 +453,6 @@ function StatCard({ title, value, icon, color }: {
 
 // Month View Component
 function MonthView({
-  getDaysInMonth,
   getTrainingsForDate,
   handleDateClick,
   currentDate
@@ -463,73 +463,23 @@ function MonthView({
   currentDate: Date
 }) {
   const { user } = Route.useRouteContext()
+  const readOnly = user?.role === 'TRAINER'
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      {/* Day Headers */}
-      <div className="grid grid-cols-7 gap-2 mb-4">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-          <div key={day} className="text-center font-semibold text-gray-700 py-2">
-            {day}
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar Days */}
-      <div className="grid grid-cols-7 gap-2">
-        {getDaysInMonth().map((day, idx) => {
-          if (!day) {
-            return <div key={`empty-${idx}`} className="aspect-square" />
-          }
-
-          const trainings = getTrainingsForDate(day)
-          const isToday =
-            day === new Date().getDate() &&
-            currentDate.getMonth() === new Date().getMonth() &&
-            currentDate.getFullYear() === new Date().getFullYear()
-
-          return (
-            <div
-              key={day}
-              onClick={() => {
-                // Only allow click if NOT a trainer
-                if (user?.role !== 'TRAINER') {
-                  handleDateClick(day)
-                }
-              }}
-              className={`
-                aspect-square border-2 rounded-lg p-2 transition-all
-                ${user?.role !== 'TRAINER'
-                  ? 'cursor-pointer hover:shadow-lg hover:border-orange-500 hover:scale-105'
-                  : 'cursor-default'}
-                ${isToday ? 'border-orange-600 bg-orange-50' : 'border-gray-200 bg-white'}
-              `}
-            >
-              <div className={`font-semibold mb-1 ${isToday ? 'text-orange-600' : 'text-gray-900'}`}>
-                {day}
-              </div>
-
-              {/* Training indicators */}
-              <div className="space-y-1">
-                {trainings.slice(0, 2).map((training: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="bg-orange-100 text-orange-800 text-xs p-1 rounded truncate"
-                    title={training.training_type}
-                  >
-                    💪 {training.training_type.substring(0, 8)}...
-                  </div>
-                ))}
-                {trainings.length > 2 && (
-                  <div className="text-xs text-gray-600 font-medium">
-                    +{trainings.length - 2} more
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+    <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+      <MonthCalendar
+        monthDate={currentDate}
+        readOnly={readOnly}
+        onDayClick={readOnly ? undefined : handleDateClick}
+        getItems={(day) =>
+          getTrainingsForDate(day).map((t: any, idx: number): CalItem => ({
+            key: idx,
+            label: `💪 ${t.training_type}`,
+            color: '#ea580c',
+            onClick: readOnly ? undefined : () => handleDateClick(day),
+          }))
+        }
+      />
     </div>
   )
 }

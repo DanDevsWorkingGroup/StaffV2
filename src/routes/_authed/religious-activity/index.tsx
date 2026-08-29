@@ -3,6 +3,7 @@ import { getSupabaseServerClient } from '~/utils/supabase'
 import { getCurrentUserRole } from '~/middleware/rbac'
 import { useState, useEffect } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { MonthCalendar, type CalItem } from '~/components/mobile'
 
 // Server functions
 const getReligiousActivityData = createServerFn({ method: 'GET' }).handler(async () => {
@@ -924,7 +925,6 @@ function MyScheduleView({
 
 // Month View Component
 function MonthView({
-  getDaysInMonth,
   getActivitiesForDate,
   handleDateClick,
   currentDate
@@ -935,88 +935,28 @@ function MonthView({
   currentDate: Date
 }) {
   const { user } = Route.useRouteContext()
+  const readOnly = user?.role === 'TRAINER'
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      {/* Day Headers */}
-      <div className="grid grid-cols-7 gap-2 mb-4">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, idx) => (
-          <div
-            key={day}
-            className={`text-center font-semibold py-2 ${idx === 5 ? 'text-green-700' : 'text-gray-700'
-              }`}
-          >
-            {day}
-            {idx === 5 && <span className="ml-1">🕌</span>}
-          </div>
-        ))}
-      </div>
-
-      {/* Calendar Days */}
-      <div className="grid grid-cols-7 gap-2">
-        {getDaysInMonth().map((day, idx) => {
-          if (!day) {
-            return <div key={`empty-${idx}`} className="aspect-square" />
-          }
-
-          const dayActivities = getActivitiesForDate(day)
-          const isToday =
-            day === new Date().getDate() &&
-            currentDate.getMonth() === new Date().getMonth() &&
-            currentDate.getFullYear() === new Date().getFullYear()
-
-          const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-          const isFriday = dateObj.getDay() === 5
-
-          return (
-            <div
-              key={day}
-              onClick={() => {
-                if (user?.role !== 'TRAINER') {
-                  handleDateClick(day)
-                }
-              }}
-              className={`
-                aspect-square border-2 rounded-lg p-2 transition-all
-                ${user?.role !== 'TRAINER'
-                  ? 'cursor-pointer hover:shadow-lg hover:border-teal-500 hover:scale-105'
-                  : 'cursor-default'}
-                ${isToday ? 'border-teal-600 bg-teal-50 ring-2 ring-teal-300' :
-                  isFriday ? 'border-green-400 bg-green-50' :
-                    dayActivities.length > 0 ? 'border-teal-300 bg-teal-50' :
-                      'border-gray-200 hover:border-gray-300'}
-              `}
-            >
-              <div className={`text-sm font-semibold ${isToday ? 'text-teal-600' :
-                isFriday ? 'text-green-600' :
-                  'text-gray-700'
-                }`}>
-                {day}
-                {isFriday && <span className="ml-1">🕌</span>}
-              </div>
-              <div className="mt-1 space-y-1">
-                {dayActivities.slice(0, 2).map(activity => (
-                  <div
-                    key={activity.id}
-                    className={`text-xs p-1 rounded border-l-2 truncate ${activity.activity.includes('Prayer') || activity.activity.includes('Jummah')
-                      ? 'bg-green-100 text-green-800 border-green-500'
-                      : 'bg-teal-100 text-teal-800 border-teal-500'
-                      }`}
-                    title={activity.activity}
-                  >
-                    {activity.activity.substring(0, 10)}...
-                  </div>
-                ))}
-                {dayActivities.length > 2 && (
-                  <div className="text-xs text-gray-600">
-                    +{dayActivities.length - 2} more
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+    <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+      <MonthCalendar
+        monthDate={currentDate}
+        readOnly={readOnly}
+        accentClass="text-teal-600"
+        todayRingClass="border-teal-600 bg-teal-50"
+        onDayClick={readOnly ? undefined : handleDateClick}
+        getItems={(day) =>
+          getActivitiesForDate(day).map((a: any): CalItem => {
+            const prayerish = a.activity.includes('Prayer') || a.activity.includes('Jummah')
+            return {
+              key: a.id,
+              label: `${prayerish ? '🕌' : '📖'} ${a.activity}`,
+              color: prayerish ? '#16a34a' : '#0d9488',
+              onClick: readOnly ? undefined : () => handleDateClick(day),
+            }
+          })
+        }
+      />
     </div>
   )
 }

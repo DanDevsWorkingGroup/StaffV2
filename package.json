@@ -1,7 +1,7 @@
 {
   "name": "abpm-trainer-cf",
   "version": "1.0.0",
-  "description": "ABPM Trainer System \u2014 Cloudflare Workers + D1",
+  "description": "ABPM Trainer System — Cloudflare Workers + D1",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
+    "build:icons": "node scripts/build-icons.mjs",
     "test": "node --experimental-strip-types --import ./scripts/test/register.mjs scripts/test/postgrest.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "db:migrate": "wrangler d1 execute abpm-trainer --remote --file=migrations/0001_schema.sql"
@@ -35,5 +36,10 @@
     "vite": "^7.1.7",
     "vite-tsconfig-paths": "^5.1.4",
     "wrangler": "^4.106.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.28.1": true,
+    "workerd@1.20260826.1": true
   }
 }

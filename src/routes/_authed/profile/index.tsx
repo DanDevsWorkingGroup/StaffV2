@@ -117,22 +117,22 @@ function ProfilePage() {
   const { profile, activityStats } = Route.useLoaderData()
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       {/* Header Section */}
-      <div className="bg-gradient-to-r from-orange-600 to-red-700 rounded-lg shadow-lg p-8 text-white">
-        <div className="flex items-center space-x-6">
-          <div className="w-24 h-24 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border-4 border-white/30">
-            <span className="text-5xl font-bold text-white">
+      <div className="bg-gradient-to-r from-orange-600 to-red-700 rounded-lg shadow-lg p-5 text-white sm:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-4 border-white/30 bg-white/20 backdrop-blur-sm sm:h-24 sm:w-24">
+            <span className="text-3xl font-bold text-white sm:text-5xl">
               {profile.name?.charAt(0).toUpperCase() || 'U'}
             </span>
           </div>
-          
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2">
+
+          <div className="min-w-0 flex-1">
+            <h1 className="text-balance text-2xl font-bold sm:text-3xl">
               {profile.role === 'ADMIN' ? 'System Administrator' : profile.name}
             </h1>
-            <p className="text-orange-100 text-lg">{profile.email}</p>
-            <div className="flex items-center space-x-4 mt-3">
+            <p className="break-all text-orange-100 sm:text-lg">{profile.email}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
                 profile.isActive 
                   ? 'bg-green-500/30 text-green-100 border border-green-300/50' 

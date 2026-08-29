@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
 import { useState, useEffect } from 'react'
+import { MonthCalendar, type CalItem } from '~/components/mobile'
 
 // NEW: Server function to fetch schedule data for a specific month
 const getScheduleDataForMonth = createServerFn({ method: 'POST' })
@@ -1374,21 +1375,6 @@ function MonthlyCalendar({
   currentTrainer: any | null;  // ADD THIS TYPE
 }) {
   const navigate = useNavigate()
-  const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1)
-  const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0)
-  const startDay = firstDay.getDay()
-  const daysInMonth = lastDay.getDate()
-
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-  const calendar = []
-
-  for (let i = 0; i < startDay; i++) {
-    calendar.push(null)
-  }
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    calendar.push(day)
-  }
 
   const isEventOnDate = (event: any, dateStr: string) => {
     return dateStr >= event.start_date && dateStr <= event.end_date
@@ -1396,63 +1382,23 @@ function MonthlyCalendar({
 
   return (
     <div className="p-4">
-      <div className="grid grid-cols-7 gap-2 mb-2">
-        {days.map(day => (
-          <div key={day} className="text-center font-semibold text-gray-700 py-2">
-            {day}
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-7 gap-2">
-        {calendar.map((day, idx) => {
-          if (!day) {
-            return <div key={`empty-${idx}`} className="aspect-square" />
-          }
-
+      <MonthCalendar
+        monthDate={currentDate}
+        accentClass="text-teal-600"
+        todayRingClass="border-teal-500 bg-teal-50"
+        getItems={(day) => {
           const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-          const daySchedules = schedules.filter(s => s.date === dateStr)
-          
-          // 🔥 NEW: Filter events based on user role
           const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-          const allDayEvents = events.filter(e => isEventOnDate(e, dateStr))
+          const allDayEvents = events.filter((e) => isEventOnDate(e, dateStr))
           const dayEvents = filterEventsForUser(allDayEvents, schedules, currentTrainer, date)
-
-          return (
-            <div
-              key={day}
-              className="aspect-square border rounded-lg p-2 hover:shadow-md transition"
-            >
-              <div className="font-semibold text-gray-900">{day}</div>
-              <div className="mt-1 space-y-1">
-                {dayEvents.slice(0, 2).map(event => (
-                  <div
-                    key={event.id}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate({ to: '/events/$id', params: { id: event.id } })
-                    }}
-                    className="text-xs p-1 rounded border-l-2 cursor-pointer hover:opacity-80 transition-opacity"
-                    style={{
-                      borderLeftColor: event.color || '#3b82f6',
-                      backgroundColor: event.color ? `${event.color}20` : '#eff6ff'
-                    }}
-                    title={event.name}
-                  >
-                    {event.name.substring(0, 8)}..
-                  </div>
-                ))}
-               
-                {dayEvents.length > 2 && (
-                  <div className="text-xs text-gray-600">
-                    +{dayEvents.length - 2} more
-                  </div>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
+          return dayEvents.map((event: any): CalItem => ({
+            key: event.id,
+            label: event.name,
+            color: event.color || '#3b82f6',
+            onClick: () => navigate({ to: '/events/$id', params: { id: event.id } }),
+          }))
+        }}
+      />
     </div>
   )
 }

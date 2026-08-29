@@ -317,19 +317,21 @@ function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-orange-600 to-red-700 rounded-lg shadow-lg p-8 text-white">
-        <div className="flex items-center space-x-4">
+      <div className="bg-gradient-to-r from-orange-600 to-red-700 rounded-lg shadow-lg p-5 text-white sm:p-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <img
             src="/abpm-logo.png"
             alt="ABPM Logo"
-            className="h-32 w-auto"
+            width={607}
+            height={411}
+            className="h-14 w-auto self-start sm:h-24 lg:h-32"
           />
-          <div>
-            <h1 className="text-4xl font-bold mb-2">ABPM Trainer System</h1>
-            <p className="text-blue-100 text-lg">
+          <div className="min-w-0">
+            <h1 className="text-balance text-2xl font-bold sm:text-3xl lg:text-4xl">ABPM Trainer System</h1>
+            <p className="mt-1 text-blue-100 sm:text-lg">
               Welcome back, {displayName}!
             </p>
-            <p className="text-blue-200 text-sm mt-1">
+            <p className="mt-1 text-sm text-blue-200">
               {new Date().toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',

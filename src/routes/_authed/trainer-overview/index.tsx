@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { DataList, Modal, MonthCalendar, type CalItem, type Column } from '~/components/mobile'
 
 // Server function to get all trainer overview data
 const getTrainerOverviewData = createServerFn({ method: 'GET' })
@@ -756,18 +757,18 @@ const filteredTrainersEnhanced = trainers.filter((t: any) => {
   const days = getDaysInMonth()
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+    <div>
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-800 text-white rounded-xl shadow-2xl p-6 mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Trainer Overview & Management</h1>
-            <p className="text-red-100 mt-1">Monitor trainer activities and manage staff</p>
+      <div className="bg-gradient-to-r from-red-600 to-red-800 text-white rounded-xl shadow-lg p-5 mb-6 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h1 className="text-balance text-2xl font-bold sm:text-3xl">Trainer Overview &amp; Management</h1>
+            <p className="text-red-100 mt-1 text-sm sm:text-base">Monitor trainer activities and manage staff</p>
           </div>
-          <div className="flex gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-3">
             <button
               onClick={() => setViewMode('directory')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${viewMode === 'directory'
+              className={`min-h-11 rounded-lg px-4 py-2 font-semibold transition ${viewMode === 'directory'
                   ? 'bg-white text-red-700'
                   : 'bg-red-500 text-white hover:bg-red-400'
                 }`}
@@ -776,7 +777,7 @@ const filteredTrainersEnhanced = trainers.filter((t: any) => {
             </button>
             <button
               onClick={() => setViewMode('dashboard')}
-              className={`px-4 py-2 rounded-lg font-semibold transition ${viewMode === 'dashboard'
+              className={`min-h-11 rounded-lg px-4 py-2 font-semibold transition ${viewMode === 'dashboard'
                   ? 'bg-white text-red-700'
                   : 'bg-red-500 text-white hover:bg-red-400'
                 }`}
@@ -911,144 +912,121 @@ const filteredTrainersEnhanced = trainers.filter((t: any) => {
 
     {/* Trainer Directory Table */}
     <div className="bg-white rounded-lg shadow-lg">
-      <div className="p-6 border-b flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Trainer Directory</h2>
+      <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Trainer Directory</h2>
         {user?.role === 'ADMIN' && (
           <button
             onClick={() => setShowAddModal(true)}
-            className="bg-teal-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-teal-700 transition flex items-center gap-2"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-teal-600 px-4 py-2 font-semibold text-white transition hover:bg-teal-700"
           >
             <span className="text-xl">+</span> Add New
           </button>
         )}
       </div>
-      
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead className="bg-gray-50 border-b-2 border-gray-200">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Trainer
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Rank
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Department
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Role
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200">
-            {filteredTrainersEnhanced.map((t: any) => (
-              <tr key={t.id} className="hover:bg-gray-50 transition">
-                <td className="px-6 py-4">
-                  <div className="flex items-center">
-                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                      {t.name.charAt(0)}
-                    </div>
-                    <div className="ml-4">
-                      <Link
-                        to="/trainer-overview/$id"
-                        params={{ id: t.id.toString() }}
-                        className="text-blue-600 hover:text-blue-800 font-semibold hover:underline cursor-pointer"
-                      >
-                        {t.name}
-                      </Link>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  {t.rank || '-'}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-700">
-                  {t.department || '-'}
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    t.roles?.name === 'ADMIN' 
+
+      <div className="p-3 sm:p-4">
+        <DataList<any>
+          rows={filteredTrainersEnhanced}
+          getKey={(t) => t.id}
+          empty="No trainers found. Try adjusting your search or filters."
+          columns={[
+            {
+              key: 'name',
+              header: 'Trainer',
+              primary: true,
+              cell: (t) => (
+                <span className="flex items-center gap-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 font-bold text-white">
+                    {t.name.charAt(0)}
+                  </span>
+                  <Link
+                    to="/trainer-overview/$id"
+                    params={{ id: t.id.toString() }}
+                    className="font-semibold text-blue-600 hover:underline"
+                  >
+                    {t.name}
+                  </Link>
+                </span>
+              ),
+            },
+            { key: 'rank', header: 'Rank', cell: (t) => t.rank || '-' },
+            { key: 'department', header: 'Department', cell: (t) => t.department || '-' },
+            {
+              key: 'role',
+              header: 'Role',
+              cell: (t) => (
+                <span
+                  className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
+                    t.roles?.name === 'ADMIN'
                       ? 'bg-purple-100 text-purple-800'
                       : t.roles?.name === 'COORDINATOR'
-                      ? 'bg-blue-100 text-blue-800'
-                      : 'bg-green-100 text-green-800'
-                  }`}>
-                    {t.roles?.name || 'TRAINER'}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    t.status === 'active'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {t.status || 'active'}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2 text-sm">
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-green-100 text-green-800'
+                  }`}
+                >
+                  {t.roles?.name || 'TRAINER'}
+                </span>
+              ),
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              cell: (t) => (
+                <span
+                  className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
+                    t.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  {t.status || 'active'}
+                </span>
+              ),
+            },
+          ] as Column<any>[]}
+          actions={(t) => (
+            <>
+              <button
+                onClick={() => handleViewTrainer(t.id)}
+                className="min-h-9 rounded-md px-3 text-sm font-semibold text-blue-600 hover:bg-blue-50"
+              >
+                View Schedule
+              </button>
+              {user?.role === 'ADMIN' && (
+                <>
+                  <Link
+                    to="/trainer-overview/edit/$id"
+                    params={{ id: t.id.toString() }}
+                    className="min-h-9 rounded-md px-3 text-sm font-semibold text-orange-600 hover:bg-orange-50"
+                  >
+                    Edit
+                  </Link>
+                  {deleteConfirm === t.id ? (
+                    <span className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        className="min-h-9 rounded-md px-3 text-sm font-semibold text-red-600 hover:bg-red-50"
+                      >
+                        Confirm?
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(null)}
+                        className="min-h-9 rounded-md px-3 text-sm font-semibold text-gray-600 hover:bg-gray-100"
+                      >
+                        Cancel
+                      </button>
+                    </span>
+                  ) : (
                     <button
-                      onClick={() => handleViewTrainer(t.id)}
-                      className="text-blue-600 hover:text-blue-900 font-semibold"
+                      onClick={() => setDeleteConfirm(t.id)}
+                      className="min-h-9 rounded-md px-3 text-sm font-semibold text-red-600 hover:bg-red-50"
                     >
-                      View Schedule
+                      Delete
                     </button>
-                    {user?.role === 'ADMIN' && (
-                      <>
-                        <span className="text-gray-300">|</span>
-                        <Link
-                          to="/trainer-overview/edit/$id"
-                          params={{ id: t.id.toString() }}
-                          className="text-orange-600 hover:text-orange-800 font-semibold"
-                        >
-                          Edit
-                        </Link>
-                        <span className="text-gray-300">|</span>
-                        {deleteConfirm === t.id ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleDelete(t.id)}
-                              className="text-red-600 hover:text-red-800 font-semibold"
-                            >
-                              Confirm?
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirm(null)}
-                              className="text-gray-600 hover:text-gray-800 font-semibold"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setDeleteConfirm(t.id)}
-                            className="text-red-600 hover:text-red-800 font-semibold"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {filteredTrainersEnhanced.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            <p className="text-lg font-semibold">No trainers found</p>
-            <p className="text-sm mt-2">Try adjusting your search or filters</p>
-          </div>
-        )}
+                  )}
+                </>
+              )}
+            </>
+          )}
+        />
       </div>
     </div>
   </>
@@ -1140,95 +1118,26 @@ const filteredTrainersEnhanced = trainers.filter((t: any) => {
                   Monthly Summary for {trainer?.rank} {trainer?.name}
                 </h3>
 
-                <div className="grid grid-cols-7 gap-2 mb-2 text-center text-sm font-semibold text-gray-600">
-                  <div>Sun</div>
-                  <div>Mon</div>
-                  <div>Tue</div>
-                  <div>Wed</div>
-                  <div>Thu</div>
-                  <div>Fri 🕌</div>
-                  <div>Sat</div>
-                </div>
-
-                <div className="grid grid-cols-7 gap-2">
-                  {days.map((day, index) => {
-                    if (day === null) {
-                      return <div key={`empty-${index}`}></div>
-                    }
-
+                <MonthCalendar
+                  monthDate={currentDate}
+                  accentClass="text-blue-700"
+                  todayRingClass="border-blue-600 bg-blue-50"
+                  onDayClick={(day) =>
+                    setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day))
+                  }
+                  getItems={(day) => {
                     const dayActivities = getActivitiesForDate(day)
-                    const dateObj = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                    const today = new Date()
-                    const isToday = dateObj.toDateString() === today.toDateString()
-                    const isFriday = dateObj.getDay() === 5
-                    const isSelectedDate = selectedDate?.getDate() === day &&
-                      selectedDate?.getMonth() === currentDate.getMonth() &&
-                      selectedDate?.getFullYear() === currentDate.getFullYear()
-
-                    return (
-                      <div
-                        key={day}
-                        onClick={() => {
-                          const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-                          setSelectedDate(date)
-                        }}
-                        className={`
-                          aspect-square border-2 rounded-lg p-2 cursor-pointer transition-all
-                          hover:shadow-lg hover:scale-105
-                          ${isToday ? 'border-blue-600 bg-blue-50 ring-2 ring-blue-300' :
-                            isFriday ? 'border-teal-400 bg-teal-50' :
-                              isSelectedDate ? 'border-purple-600 bg-purple-50' :
-                                'border-gray-200 bg-white'}
-                        `}
-                      >
-                        <div className={`font-semibold mb-1 text-sm ${isToday ? 'text-blue-700' :
-                            isFriday ? 'text-teal-700' :
-                              isSelectedDate ? 'text-purple-700' :
-                                'text-gray-900'
-                          }`}>
-                          {day}
-                        </div>
-
-                        <div className="space-y-1">
-                          {dayActivities.slice(0, 2).map((activity: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="text-xs px-1 py-0.5 rounded truncate"
-                              style={{ backgroundColor: activity.color + '20', color: activity.color }}
-                              title={`${activity.activity} (${activity.role})`}
-                            >
-                              {activity.type === 'Religious Activity' ? '🕌' :
-                                activity.type === 'Physical Training' ? '💪' : '📅'}
-                            </div>
-                          ))}
-                          {dayActivities.length > 2 && (
-                            <div className="text-xs text-gray-600 font-medium">
-                              +{dayActivities.length - 2}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                {/* Legend */}
-                <div className="mt-6 pt-4 border-t">
-                  <div className="flex flex-wrap gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 border-2 border-blue-600 bg-blue-50 rounded"></div>
-                      <span>Today</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 border-2 border-purple-600 bg-purple-50 rounded"></div>
-                      <span>Selected</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 border-2 border-teal-400 bg-teal-50 rounded"></div>
-                      <span>Friday 🕌</span>
-                    </div>
-                  </div>
-                </div>
+                    const pick = (a: any) =>
+                      a.type === 'Religious Activity' ? '🕌' : a.type === 'Physical Training' ? '💪' : '📅'
+                    return dayActivities.map((a: any, idx: number): CalItem => ({
+                      key: idx,
+                      label: `${pick(a)} ${a.activity}`,
+                      color: a.color,
+                      onClick: () =>
+                        setSelectedDate(new Date(currentDate.getFullYear(), currentDate.getMonth(), day)),
+                    }))
+                  }}
+                />
               </div>
 
               {/* NEW: Hourly Timeline Schedule */}
@@ -1323,6 +1232,9 @@ function AddTrainerModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const inputClass =
+    'w-full min-h-11 rounded-lg border px-3 py-2 text-base focus:ring-2 focus:ring-blue-500 sm:text-sm'
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1347,131 +1259,130 @@ function AddTrainerModal({
     }
   }
 
+  const formId = 'add-trainer-form'
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold text-gray-900">Add New Trainer</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">×</button>
+    <Modal
+      open
+      onClose={onClose}
+      title="Add New Trainer"
+      size="md"
+      initialFocus={nameRef}
+      footer={
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-11 rounded-lg border px-4 py-2 font-medium hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form={formId}
+            disabled={isSubmitting}
+            className="min-h-11 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {isSubmitting ? 'Creating...' : 'Create Trainer'}
+          </button>
+        </>
+      }
+    >
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600">{error}</div>
+      )}
+
+      <form id={formId} onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Full Name</label>
+          <input
+            ref={nameRef}
+            type="text"
+            required
+            value={formData.name}
+            onChange={e => setFormData({ ...formData, name: e.target.value })}
+            className={inputClass}
+            placeholder="e.g. Ahmad Tarmizi"
+          />
         </div>
 
-        {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Rank</label>
+          <input
+            type="text"
+            required
+            value={formData.rank}
+            onChange={e => setFormData({ ...formData, rank: e.target.value })}
+            className={inputClass}
+            placeholder="e.g. KB41"
+          />
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Email <span className="font-normal text-gray-400">(Optional)</span></label>
+          <input
+            type="email"
+            autoComplete="email"
+            value={formData.email}
+            onChange={e => setFormData({ ...formData, email: e.target.value })}
+            className={inputClass}
+            placeholder="ahmad.faiz@abpm.gov.my"
+          />
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Password <span className="font-normal text-gray-400">(Optional)</span></label>
+          <div className="relative">
             <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g. Ahmad Tarmizi"
+              type={showPassword ? 'text' : 'password'}
+              value={formData.password}
+              onChange={e => setFormData({ ...formData, password: e.target.value })}
+              className={`${inputClass} pr-12`}
+              placeholder="Min. 6 characters"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Rank</label>
-            <input
-              type="text"
-              required
-              value={formData.rank}
-              onChange={e => setFormData({ ...formData, rank: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g. KB41"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-gray-400 font-normal">(Optional)</span></label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={e => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="ahmad.faiz@abpm.gov.my"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-gray-400 font-normal">(Optional)</span></label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={formData.password}
-                onChange={e => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 pr-10"
-                placeholder="Min. 6 characters"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
-              >
-                {showPassword ? (
-                  <span className="text-xl">👁️</span>
-                ) : (
-                  <span className="text-xl">🔒</span>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-            <select
-              value={formData.role_id}
-              onChange={e => setFormData({ ...formData, role_id: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select Role</option>
-              {roles.map((role: any) => (
-                <option key={role.id} value={role.id}>{role.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-            <select
-              value={formData.status}
-              onChange={e => setFormData({ ...formData, status: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="active">Active</option>
-              <option value="lead">Lead</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end space-x-3 mt-6">
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 border rounded-lg hover:bg-gray-50 font-medium"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-gray-500 hover:text-gray-700"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50"
-            >
-              {isSubmitting ? 'Creating...' : 'Create Trainer'}
+              <span className="text-xl">{showPassword ? '👁️' : '🔒'}</span>
             </button>
           </div>
-        </form>
+        </div>
 
-        <p className="mt-4 text-xs text-gray-500 text-center">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Role</label>
+          <select
+            value={formData.role_id}
+            onChange={e => setFormData({ ...formData, role_id: e.target.value })}
+            className={inputClass}
+          >
+            <option value="">Select Role</option>
+            {roles.map((role: any) => (
+              <option key={role.id} value={role.id}>{role.name}</option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700">Status</label>
+          <select
+            value={formData.status}
+            onChange={e => setFormData({ ...formData, status: e.target.value })}
+            className={inputClass}
+          >
+            <option value="active">Active</option>
+            <option value="lead">Lead</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+
+        <p className="text-xs text-gray-500">
           Email and Password are required to create a login capability for the trainer.
-          Requires server configuration.
         </p>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }
 

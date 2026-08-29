@@ -82,8 +82,13 @@ export const Route = createRootRoute({
       },
       {
         name: 'viewport',
-        content: 'width=device-width, initial-scale=1',
+        content: 'width=device-width, initial-scale=1, viewport-fit=cover',
       },
+      { name: 'theme-color', content: '#c2410c' },
+      { name: 'mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-status-bar-style', content: 'default' },
+      { name: 'apple-mobile-web-app-title', content: 'ABPM Trainer' },
       ...seo({
         title: 'ABPM Trainer System - Manage Training Activities',
         description: 'ABPM Trainer Management System for tracking schedules, events, dormitory, and activities',
@@ -108,8 +113,8 @@ export const Route = createRootRoute({
         sizes: '16x16',
         href: '/favicon-16x16.png',
       },
-      { rel: 'manifest', href: '/site.webmanifest', color: '#fffff' },
-      { rel: 'icon', href: '/favicon.ico' },
+      { rel: 'icon', type: 'image/png', sizes: '192x192', href: '/icon-192.png' },
+      { rel: 'manifest', href: '/site.webmanifest' },
     ],
   }),
   errorComponent: (props) => {
@@ -159,27 +164,40 @@ function canAccessOverviewTab(role?: UserRole): boolean {
 function RootDocument({ children }: { children: React.ReactNode }) {
   const { user } = Route.useRouteContext()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false)
+  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
+  const profileRef = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!isProfileOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setIsProfileOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [isProfileOpen])
 
   return (
-    <html>
+    <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body className="bg-gray-50">
         {/* Top Navigation Bar */}
-        <nav className="bg-gradient-to-r from-orange-600 to-red-700 text-white shadow-lg">
+        <nav className="bg-gradient-to-r from-orange-600 to-red-700 text-white shadow-lg pt-safe">
           <div className="max-w-7xl mx-auto px-4">
-            <div className="flex justify-between items-center h-16">
+            <div className="flex justify-between items-center gap-2 h-16">
               {/* Logo and Title */}
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 min-w-0">
                 <img
                   src="/abpm-logo.png"
                   alt="ABPM Logo"
-                  className="h-10 w-auto"
+                  className="h-9 w-auto shrink-0 sm:h-10"
                 />
-                <div className="flex flex-col">
-                  <h1 className="text-lg font-bold leading-tight">ABPM Trainer System</h1>
-                  <p className="text-xs text-orange-100">Akademi Bomba dan Penyelamat Malaysia</p>
+                <div className="flex min-w-0 flex-col">
+                  <h1 className="truncate text-base font-bold leading-tight sm:text-lg">ABPM Trainer System</h1>
+                  <p className="truncate text-xs text-orange-100">Akademi Bomba dan Penyelamat Malaysia</p>
                 </div>
               </div>
 
@@ -212,27 +230,39 @@ function RootDocument({ children }: { children: React.ReactNode }) {
               </div>
 
               {/* User Menu with Profile Dropdown */}
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-2 shrink-0">
                 {user ? (
                   <>
                     {/* Profile Dropdown */}
-                    <div className="relative group">
+                    <div className="relative" ref={profileRef}>
                       {/* Profile Button */}
-                      <button className="flex items-center space-x-2 hover:bg-red-800 px-3 py-2 rounded-lg transition">
+                      <button
+                        type="button"
+                        aria-haspopup="menu"
+                        aria-expanded={isProfileOpen}
+                        onClick={() => setIsProfileOpen((v) => !v)}
+                        className="flex items-center gap-2 hover:bg-red-800 px-2 py-2 rounded-lg transition sm:px-3"
+                      >
                         {/* Avatar */}
-                        <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border-2 border-white/30">
+                        <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border-2 border-white/30 shrink-0">
                           <span className="text-sm font-bold text-white">
                             {user.email?.charAt(0).toUpperCase()}
                           </span>
                         </div>
-                        <span className="hidden sm:inline text-sm font-medium">{user.email}</span>
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <span className="hidden max-w-[40vw] truncate text-sm font-medium sm:inline">{user.email}</span>
+                        <svg className={`w-4 h-4 shrink-0 transition-transform ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </button>
 
                       {/* Dropdown Menu */}
-                      <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                      <div
+                        role="menu"
+                        onClick={() => setIsProfileOpen(false)}
+                        className={`absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-2 transition-all duration-150 z-50 ${
+                          isProfileOpen ? 'opacity-100 visible' : 'invisible opacity-0'
+                        }`}
+                      >
                         <div className="px-4 py-3 border-b border-gray-200">
                           <p className="text-sm font-semibold text-gray-900 truncate">{user.email}</p>
                           {/* Role badge */}
@@ -295,11 +325,14 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
                 {/* Mobile Menu Button */}
                 <button
-                  className="md:hidden p-2"
+                  type="button"
+                  aria-label="Menu"
+                  aria-expanded={isMobileMenuOpen}
+                  className="md:hidden flex h-10 w-10 items-center justify-center rounded-lg hover:bg-red-800"
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isMobileMenuOpen ? 'M6 18L18 6M6 6l12 12' : 'M4 6h16M4 12h16M4 18h16'} />
                   </svg>
                 </button>
               </div>
@@ -314,13 +347,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                     <>
                       <div className="border-b border-red-800 pb-3 mb-3">
                         <div className="flex items-center space-x-3 px-4 py-2">
-                          <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/30">
+                          <div className="w-10 h-10 shrink-0 bg-white/20 rounded-full flex items-center justify-center border-2 border-white/30">
                             <span className="text-white font-bold">
                               {user.email?.charAt(0).toUpperCase()}
                             </span>
                           </div>
-                          <div>
-                            <p className="font-semibold text-white text-sm">{user.email}</p>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-white text-sm">{user.email}</p>
                             {user.role && (
                               <p className="text-xs text-orange-200">{user.role}</p>
                             )}
@@ -407,11 +440,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         </nav>
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 py-6">
+        <main className="max-w-7xl mx-auto px-3 py-4 pb-safe sm:px-4 sm:py-6 lg:px-6">
           {children}
         </main>
 
-        <TanStackRouterDevtools position="bottom-right" />
+        {import.meta.env.DEV && <TanStackRouterDevtools position="bottom-right" />}
         <Scripts />
       </body>
     </html>
