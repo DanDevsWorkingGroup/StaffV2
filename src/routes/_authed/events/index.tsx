@@ -129,7 +129,10 @@ function EventsPage() {
     const now = new Date()
     return start <= now && end >= now
   })
-  const pastEvents = filteredEvents.filter((e: any) => new Date(e.end_date) < new Date())
+  const pastEvents = filteredEvents
+  .filter((e: any) => new Date(e.end_date) < new Date())
+  .sort((a: any, b: any) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())
+
 
   return (
     <div className="space-y-6">
