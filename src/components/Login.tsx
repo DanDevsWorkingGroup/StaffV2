@@ -1,8 +1,6 @@
 import { useRouter } from '@tanstack/react-router'
-import { useServerFn } from '@tanstack/react-start'
 import { useMutation } from '../hooks/useMutation'
 import { loginFn } from '../routes/_authed'
-import { signupFn } from '../routes/signup'
 import { Auth } from './Auth'
 
 export function Login() {
@@ -17,10 +15,6 @@ export function Login() {
         return
       }
     },
-  })
-
-  const signupMutation = useMutation({
-    fn: useServerFn(signupFn),
   })
 
   return (
@@ -38,33 +32,8 @@ export function Login() {
         })
       }}
       afterSubmit={
-        loginMutation.data ? (
-          <>
-            <div className="text-red-400">{loginMutation.data.message}</div>
-            {loginMutation.data.error &&
-            loginMutation.data.message === 'Invalid login credentials' ? (
-              <div>
-                <button
-                  className="text-blue-500"
-                  onClick={(e) => {
-                    const formData = new FormData(
-                      (e.target as HTMLButtonElement).form!,
-                    )
-
-                    signupMutation.mutate({
-                      data: {
-                        email: formData.get('email') as string,
-                        password: formData.get('password') as string,
-                      },
-                    })
-                  }}
-                  type="button"
-                >
-                  Sign up instead?
-                </button>
-              </div>
-            ) : null}
-          </>
+        loginMutation.data?.error ? (
+          <div className="text-red-400">{loginMutation.data.message}</div>
         ) : null
       }
     />

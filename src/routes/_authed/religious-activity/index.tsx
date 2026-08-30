@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
-import { getCurrentUserRole } from '~/middleware/rbac'
+import { getCurrentUserRole, resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState, useEffect } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { MonthCalendar, type CalItem } from '~/components/mobile'
@@ -103,6 +103,8 @@ const createActivity = createServerFn({ method: 'POST' })
     participants: number[]
   }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'RA COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
 
     const { error } = await supabase

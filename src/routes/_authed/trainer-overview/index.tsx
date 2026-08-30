@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useRef, useState } from 'react'
 import { DataList, Modal, MonthCalendar, type CalItem, type Column } from '~/components/mobile'
 
@@ -84,10 +85,26 @@ const createTrainer = createServerFn({ method: 'POST' })
     password?: string
   }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN'])
+
     const supabase = getSupabaseServerClient()
     const { getSupabaseAdminClient } = await import('~/utils/supabase')
     let userId = null
     let warning = null
+
+    // Validate the requested role against the roles table, and never let this
+    // form mint another ADMIN (promotion is a separate, deliberate action).
+    const { data: role } = await supabase
+      .from('roles')
+      .select('name')
+      .eq('id', data.role_id)
+      .single()
+    if (!role) {
+      return { error: 'Invalid role selected' }
+    }
+    if (role.name === 'ADMIN') {
+      return { error: 'ADMIN accounts cannot be created through this form' }
+    }
 
     console.log('🔍 Creating trainer with data:', { 
       name: data.name, 
@@ -180,22 +197,9 @@ export const Route = createFileRoute('/_authed/trainer-overview/')({
 const deleteTrainer = createServerFn({ method: 'POST' })
   .inputValidator((data: { trainerId: number }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN'])
+
     const supabase = getSupabaseServerClient()
-    
-    // Check if user is admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    const { data: trainer } = await supabase
-      .from('trainers')
-      .select('role_id, roles(name)')
-      .eq('user_id', user.id)
-      .single()
-
-    // @ts-ignore
-    if (trainer?.roles?.name !== 'ADMIN') {
-      throw new Error('Unauthorized: Only admins can delete trainers')
-    }
 
     // Soft delete
     const { error } = await supabase

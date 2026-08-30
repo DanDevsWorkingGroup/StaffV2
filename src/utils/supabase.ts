@@ -14,7 +14,6 @@ import {
   getSessionUser,
   signIn,
   signOut,
-  signUp,
 } from './auth'
 import { from } from './postgrest'
 import type { PostgrestError } from './postgrest'
@@ -42,15 +41,6 @@ const auth = {
 
   async signInWithPassword(credentials: { email: string; password: string }) {
     const result = await signIn(credentials.email, credentials.password)
-    if (result.error) {
-      return { data: { user: null, session: null }, error: authError(result.message) }
-    }
-    const { data } = await auth.getUser()
-    return { data: { user: data.user, session: {} }, error: null }
-  },
-
-  async signUp(credentials: { email: string; password: string }) {
-    const result = await signUp(credentials.email, credentials.password)
     if (result.error) {
       return { data: { user: null, session: null }, error: authError(result.message) }
     }

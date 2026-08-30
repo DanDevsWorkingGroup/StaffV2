@@ -1,7 +1,10 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
+
+const EVENT_MANAGER_ROLES = ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR']
 
 // Get event
 const getEvent = createServerFn({ method: 'GET' })
@@ -36,6 +39,8 @@ const getAllTrainers = createServerFn({ method: 'GET' }).handler(async () => {
 const updateEvent = createServerFn({ method: 'POST' })
     .inputValidator((data: any) => data)
     .handler(async ({ data }) => {
+        checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'])
+
         const supabase = getSupabaseServerClient()
 
         const { error } = await supabase
@@ -77,6 +82,11 @@ const updateEvent = createServerFn({ method: 'POST' })
     })
 
 export const Route = createFileRoute('/_authed/events/edit/$id')({
+    beforeLoad: ({ context }) => {
+        if (!context.user?.role || !EVENT_MANAGER_ROLES.includes(context.user.role)) {
+            throw new Error('Unauthorized Access: Only Admins, Coordinators and Event Coordinators can edit events')
+        }
+    },
     loader: async ({ params }) => {
         const [eventData, trainersData] = await Promise.all([
             getEvent({ data: params.id }),

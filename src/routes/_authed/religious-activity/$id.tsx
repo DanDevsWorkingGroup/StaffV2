@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
 
 // ===== TYPE DEFINITIONS =====
@@ -71,11 +72,13 @@ const getActivityDetail = createServerFn({ method: 'GET' })
     })
 
 /**
- * Delete religious activity (ADMIN/COORDINATOR only)
+ * Delete religious activity — ADMIN / COORDINATOR / RA COORDINATOR only (FSD §5.1)
  */
 const deleteActivity = createServerFn({ method: 'POST' })
     .inputValidator((id: number) => id)
     .handler(async ({ data: id }) => {
+      checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'RA COORDINATOR'])
+
         const supabase = getSupabaseServerClient()
 
         const { error } = await supabase
@@ -100,10 +103,10 @@ export const Route = createFileRoute('/_authed/religious-activity/$id')({
 // ===== HELPER FUNCTIONS =====
 
 /**
- * Check if user can manage religious activities
+ * Who may edit / delete religious activities (FSD §5.1)
  */
 function canManageActivities(role?: string): boolean {
-    return role === 'ADMIN' || role === 'COORDINATOR'
+    return role === 'ADMIN' || role === 'COORDINATOR' || role === 'RA COORDINATOR'
 }
 
 /**

@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
 import { useCanManageDormitory } from '~/hooks/useRBAC'  // ADD THIS
 
@@ -85,6 +86,8 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
 const assignTrainer = createServerFn({ method: 'POST' })
   .inputValidator((data: { trainerId: number; roomId: string }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'DORMITORY COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
 
     const { error } = await supabase
@@ -107,6 +110,8 @@ const assignTrainer = createServerFn({ method: 'POST' })
 const removeTrainer = createServerFn({ method: 'POST' })
   .inputValidator((data: { assignmentId: number }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'DORMITORY COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
 
     const { error } = await supabase

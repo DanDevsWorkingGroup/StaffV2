@@ -1,4 +1,4 @@
-import { createServerFn } from '@tanstack/react-start'
+import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
 import { all, first } from '~/utils/db'
 import { getSessionUser } from '~/utils/auth'
 
@@ -39,66 +39,115 @@ export type UserRoleData = {
 // ============================================================================
 
 /**
+ * Resolve the current session's role + permissions, reading the session cookie
+ * in the CURRENT request context. Call this from inside `createServerFn`
+ * handlers — a nested call to the `getCurrentUserRole` server function goes out
+ * as a fetch that does not forward the cookie, so it always returns `null`.
+ *
+ * Import it only where it is called inside a handler; the D1 imports it pulls in
+ * (`~/utils/db` → `cloudflare:workers`) are stripped from the client bundle
+ * along with the handler bodies.
+ *
+ * Returns `null` when there is no session, no linked trainer record, or the
+ * linked trainer has no role — all of which mean "no access".
+ *
+ * Wrapped in `createServerOnlyFn` so the compiler strips the body (and the D1
+ * import) from every client bundle.
+ */
+export const resolveUserRole = createServerOnlyFn(async (): Promise<UserRoleData | null> => {
+  const user = await getSessionUser()
+
+  if (!user) {
+    return null
+  }
+
+  // Trainer profile joined to its role in one round trip
+  const profile = await first<{
+    trainer_id: number
+    name: string
+    rank: string | null
+    role_id: string | null
+    role_name: string | null
+    role_level: number | null
+  }>(
+    `SELECT t.id AS trainer_id, t.name AS name, t.rank AS rank,
+            t.role_id AS role_id, r.name AS role_name, r.level AS role_level
+       FROM trainers t
+       LEFT JOIN roles r ON r.id = t.role_id
+      WHERE t.user_id = ?`,
+    user.id,
+  )
+
+  if (!profile) {
+    console.error('No trainer profile for user', user.id)
+    return null
+  }
+
+  if (!profile.role_id || !profile.role_name) {
+    console.error('No role assigned to trainer', profile.trainer_id)
+    return null
+  }
+
+  const permissionRows = await all<{ resource: string; action: Permission['action'] }>(
+    `SELECT p.resource AS resource, p.action AS action
+       FROM role_permissions rp
+       JOIN permissions p ON p.id = rp.permission_id
+      WHERE rp.role_id = ?`,
+    profile.role_id,
+  )
+
+  return {
+    userId: user.id,
+    trainerId: profile.trainer_id,
+    email: user.email,
+    name: profile.name,
+    role: profile.role_name as UserRole,
+    roleLevel: profile.role_level ?? 0,
+    rank: profile.rank ?? undefined,
+    permissions: permissionRows.map((p) => ({
+      resource: p.resource,
+      action: p.action,
+    })),
+  }
+})
+
+/**
  * Get current user's role and permissions
  */
 export const getCurrentUserRole = createServerFn({ method: 'GET' }).handler(
-  async (): Promise<UserRoleData | null> => {
-    const user = await getSessionUser()
-
-    if (!user) {
-      return null
-    }
-
-    // Trainer profile joined to its role in one round trip
-    const profile = await first<{
-      trainer_id: number
-      name: string
-      rank: string | null
-      role_id: string | null
-      role_name: string | null
-      role_level: number | null
-    }>(
-      `SELECT t.id AS trainer_id, t.name AS name, t.rank AS rank,
-              t.role_id AS role_id, r.name AS role_name, r.level AS role_level
-         FROM trainers t
-         LEFT JOIN roles r ON r.id = t.role_id
-        WHERE t.user_id = ?`,
-      user.id,
-    )
-
-    if (!profile) {
-      console.error('No trainer profile for user', user.id)
-      return null
-    }
-
-    if (!profile.role_id || !profile.role_name) {
-      console.error('No role assigned to trainer', profile.trainer_id)
-      return null
-    }
-
-    const permissionRows = await all<{ resource: string; action: Permission['action'] }>(
-      `SELECT p.resource AS resource, p.action AS action
-         FROM role_permissions rp
-         JOIN permissions p ON p.id = rp.permission_id
-        WHERE rp.role_id = ?`,
-      profile.role_id,
-    )
-
-    return {
-      userId: user.id,
-      trainerId: profile.trainer_id,
-      email: user.email,
-      name: profile.name,
-      role: profile.role_name as UserRole,
-      roleLevel: profile.role_level ?? 0,
-      rank: profile.rank ?? undefined,
-      permissions: permissionRows.map((p) => ({
-        resource: p.resource,
-        action: p.action,
-      })),
-    }
-  },
+  async (): Promise<UserRoleData | null> => resolveUserRole(),
 )
+
+/**
+ * Server-function authorization guard. `createServerFn` handlers are standalone
+ * network endpoints, so a route `beforeLoad` or a hidden button does NOT protect
+ * them — every mutating handler must check for itself:
+ *
+ *   .handler(async ({ data }) => {
+ *     checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'])
+ *     // ...user is now guaranteed to hold one of the listed roles
+ *   })
+ *
+ * Pass `[]` to require only a valid session. Allowed-role sets are defined in
+ * FSD §5.1 / TSD §6.5. Throws (rejecting the request) on failure.
+ *
+ * This is a pure function (no DB, no imports) so it is safe to import anywhere;
+ * the session lookup lives in `resolveUserRole`, which the compiler strips from
+ * client code.
+ */
+export function checkRole(
+  user: UserRoleData | null,
+  roles: Array<UserRole>,
+): asserts user is UserRoleData {
+  if (!user) {
+    throw new Error('Unauthorized: you must be signed in to perform this action')
+  }
+  if (roles.length > 0 && !roles.includes(user.role)) {
+    throw new Error(
+      `Forbidden: this action requires the ${roles.join(' or ')} role`,
+    )
+  }
+}
 
 /**
  * Check if current user has required role

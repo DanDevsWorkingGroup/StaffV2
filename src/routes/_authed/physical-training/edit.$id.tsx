@@ -1,7 +1,10 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
+
+const PT_MANAGER_ROLES = ['ADMIN', 'COORDINATOR', 'PT COORDINATOR']
 
 // ===== TYPE DEFINITIONS =====
 
@@ -79,6 +82,8 @@ const updateSession = createServerFn({ method: 'POST' })
     time_slot: string
   }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'PT COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
 
     const { id, ...updateData } = data
@@ -98,6 +103,11 @@ const updateSession = createServerFn({ method: 'POST' })
 // ===== ROUTE CONFIGURATION =====
 
 export const Route = createFileRoute('/_authed/physical-training/edit/$id')({
+  beforeLoad: ({ context }) => {
+    if (!context.user?.role || !PT_MANAGER_ROLES.includes(context.user.role)) {
+      throw new Error('Unauthorized Access: Only Admins, Coordinators and PT Coordinators can edit physical-training sessions')
+    }
+  },
   loader: async ({ params }) => {
     try {
       return await getSessionForEdit({ data: params.id })

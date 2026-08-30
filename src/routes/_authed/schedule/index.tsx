@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState, useEffect } from 'react'
 import { MonthCalendar, type CalItem } from '~/components/mobile'
 
@@ -8,6 +9,8 @@ import { MonthCalendar, type CalItem } from '~/components/mobile'
 const getScheduleDataForMonth = createServerFn({ method: 'POST' })
   .inputValidator((data: { year: number; month: number }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), [])
+
     const supabase = getSupabaseServerClient()
 
     const { year, month } = data

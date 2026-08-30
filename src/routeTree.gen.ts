@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LogoutRouteImport } from './routes/logout'
-import { Route as SignupRouteImport } from './routes/signup'
 import { Route as AuthedIndexRouteImport } from './routes/_authed/index'
 import { Route as AuthedPostsRouteImport } from './routes/_authed/posts'
 import { Route as AuthedTestRbacRouteImport } from './routes/_authed/test-rbac'
@@ -48,11 +47,6 @@ const LoginRoute = LoginRouteImport.update({
 const LogoutRoute = LogoutRouteImport.update({
   id: '/logout',
   path: '/logout',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthedIndexRoute = AuthedIndexRouteImport.update({
@@ -178,7 +172,6 @@ export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
-  '/signup': typeof SignupRoute
   '/posts': typeof AuthedPostsRouteWithChildren
   '/test-rbac': typeof AuthedTestRbacRoute
   '/user-guide': typeof AuthedUserGuideRoute
@@ -204,7 +197,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
-  '/signup': typeof SignupRoute
   '/test-rbac': typeof AuthedTestRbacRoute
   '/user-guide': typeof AuthedUserGuideRoute
   '/': typeof AuthedIndexRoute
@@ -232,7 +224,6 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteWithChildren
   '/login': typeof LoginRoute
   '/logout': typeof LogoutRoute
-  '/signup': typeof SignupRoute
   '/_authed/posts': typeof AuthedPostsRouteWithChildren
   '/_authed/test-rbac': typeof AuthedTestRbacRoute
   '/_authed/user-guide': typeof AuthedUserGuideRoute
@@ -262,7 +253,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/logout'
-    | '/signup'
     | '/posts'
     | '/test-rbac'
     | '/user-guide'
@@ -288,7 +278,6 @@ export interface FileRouteTypes {
   to:
     | '/login'
     | '/logout'
-    | '/signup'
     | '/test-rbac'
     | '/user-guide'
     | '/'
@@ -315,7 +304,6 @@ export interface FileRouteTypes {
     | '/_authed'
     | '/login'
     | '/logout'
-    | '/signup'
     | '/_authed/posts'
     | '/_authed/test-rbac'
     | '/_authed/user-guide'
@@ -344,7 +332,6 @@ export interface RootRouteChildren {
   AuthedRoute: typeof AuthedRouteWithChildren
   LoginRoute: typeof LoginRoute
   LogoutRoute: typeof LogoutRoute
-  SignupRoute: typeof SignupRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -368,13 +355,6 @@ declare module '@tanstack/react-router' {
       path: '/logout'
       fullPath: '/logout'
       preLoaderRoute: typeof LogoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
-      preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authed/': {
@@ -601,7 +581,6 @@ const rootRouteChildren: RootRouteChildren = {
   AuthedRoute: AuthedRouteWithChildren,
   LoginRoute: LoginRoute,
   LogoutRoute: LogoutRoute,
-  SignupRoute: SignupRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

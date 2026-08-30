@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 
 const getEventWithTrainers = createServerFn({ method: 'GET' })
   .inputValidator((id: string) => id)
@@ -86,10 +87,12 @@ const getEventWithTrainers = createServerFn({ method: 'GET' })
     return { event, assignedTrainers, error: null }
   })
 
-// ✅ FIXED: Delete event server function with proper error handling
+// Delete event — ADMIN / COORDINATOR / EVENT COORDINATOR only (enforced server-side)
 const deleteEvent = createServerFn({ method: 'POST' })
   .inputValidator((id: string) => id)
   .handler(async ({ data: id }) => {
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
 
     console.log('🗑️ Starting delete process for event ID:', id)
@@ -134,10 +137,10 @@ const deleteEvent = createServerFn({ method: 'POST' })
       throw new Error(`Failed to delete event: ${deleteError.message}`)
     }
 
-    // ✅ FIX 4: Check if event was actually deleted
+    // ✅ FIX 4: Check the event actually existed / was deleted
     if (!deletedEvent || deletedEvent.length === 0) {
-      console.error('❌ Event was not deleted (RLS policy blocked it)')
-      throw new Error('Permission denied: You do not have permission to delete this event')
+      console.error('❌ Event was not deleted (already gone?)')
+      throw new Error('Event not found or already deleted')
     }
 
     console.log('✅ Successfully deleted event:', event.name)
@@ -154,9 +157,9 @@ function EventDetailPage() {
   const { user } = Route.useRouteContext()
   const navigate = useNavigate()
 
-  // Helper function to check management access
+  // Who may edit / delete an event (FSD §5.1)
   function canManage(role?: string): boolean {
-    return role === 'ADMIN' || role === 'COORDINATOR'
+    return role === 'ADMIN' || role === 'COORDINATOR' || role === 'EVENT COORDINATOR'
   }
 
   // ✅ FIXED: Delete handler with better error handling
@@ -171,10 +174,9 @@ function EventDetailPage() {
       navigate({ to: '/events' })
     } catch (error: any) {
       console.error('Delete error:', error)
-      
-      // ✅ Show specific error message
-      if (error.message?.includes('Permission denied')) {
-        alert('Permission Denied: Only administrators can delete events.')
+
+      if (error.message?.includes('Forbidden') || error.message?.includes('Unauthorized')) {
+        alert('Permission Denied: only Admins, Coordinators and Event Coordinators can delete events.')
       } else {
         alert(`Failed to delete event: ${error.message || 'Unknown error'}`)
       }
@@ -255,7 +257,7 @@ function EventDetailPage() {
             </div>
           </div>
 
-          {/* Action Buttons - ADMIN/COORDINATOR Only */}
+          {/* Action Buttons - event managers only (FSD §5.1) */}
           {canManage(user?.role) && (
             <div className="flex gap-3 mb-6 pb-6 border-b">
               <Link
@@ -269,8 +271,8 @@ function EventDetailPage() {
                 <span>Edit Event</span>
               </Link>
 
-              {/* ✅ ADMIN ONLY: Delete button */}
-              {user?.role === 'ADMIN' && (
+              {/* Delete button — same roles as Edit (FSD §5.1) */}
+              {canManage(user?.role) && (
                 <button
                   onClick={handleDelete}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-semibold transition flex items-center justify-center space-x-2"

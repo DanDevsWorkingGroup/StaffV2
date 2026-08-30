@@ -201,42 +201,9 @@ export async function signIn(
   return { error: false }
 }
 
-export async function signUp(
-  email: string,
-  password: string,
-): Promise<AuthResult> {
-  const normalized = (email ?? '').trim()
-  if (!normalized) return { error: true, message: 'Email is required' }
-  if (!password || password.length < 6) {
-    return { error: true, message: 'Password should be at least 6 characters' }
-  }
-
-  const existing = await first<{ id: string }>(
-    'SELECT id FROM users WHERE lower(email) = lower(?)',
-    normalized,
-  )
-  if (existing) {
-    return { error: true, message: 'A user with this email address already exists' }
-  }
-
-  const now = new Date().toISOString()
-  const id = crypto.randomUUID()
-
-  await run(
-    `INSERT INTO users (id, email, password_hash, email_confirmed_at, created_at, updated_at, raw_user_meta_data)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    id,
-    normalized,
-    await hashPassword(password),
-    now,
-    now,
-    now,
-    JSON.stringify({ email_verified: true }),
-  )
-
-  await startSession(id)
-  return { error: false }
-}
+// Public self-registration (signUp) was removed: the client requirement is that
+// accounts are created only by an ADMIN, via adminCreateUser() below. See the
+// FSD §4 / TSD §6.
 
 export async function signOut(): Promise<void> {
   const token = getCookie(SESSION_COOKIE)

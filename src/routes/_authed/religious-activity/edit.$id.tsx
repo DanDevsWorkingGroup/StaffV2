@@ -1,7 +1,10 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
+
+const RA_MANAGER_ROLES = ['ADMIN', 'COORDINATOR', 'RA COORDINATOR']
 
 // ===== TYPE DEFINITIONS =====
 
@@ -77,6 +80,8 @@ const updateActivity = createServerFn({ method: 'POST' })
         participants: number[]
     }) => data)
     .handler(async ({ data }) => {
+      checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'RA COORDINATOR'])
+
         const supabase = getSupabaseServerClient()
 
         const { id, ...updateData } = data
@@ -96,6 +101,11 @@ const updateActivity = createServerFn({ method: 'POST' })
 // ===== ROUTE CONFIGURATION =====
 
 export const Route = createFileRoute('/_authed/religious-activity/edit/$id')({
+    beforeLoad: ({ context }) => {
+        if (!context.user?.role || !RA_MANAGER_ROLES.includes(context.user.role)) {
+            throw new Error('Unauthorized Access: Only Admins, Coordinators and RA Coordinators can edit religious activities')
+        }
+    },
     loader: async ({ params }) => {
         try {
             return await getActivityForEdit({ data: params.id })

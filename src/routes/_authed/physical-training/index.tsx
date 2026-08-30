@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
-import { getCurrentUserRole } from '~/middleware/rbac'
+import { getCurrentUserRole, resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState, useMemo } from 'react'
 import { MonthCalendar, type CalItem } from '~/components/mobile'
 
@@ -92,6 +92,8 @@ const createTraining = createServerFn({ method: 'POST' })
     time_slot: string
   }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'PT COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
 
     const { error } = await supabase

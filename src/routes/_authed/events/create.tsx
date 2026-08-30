@@ -1,8 +1,10 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
-import { getCurrentUserRole } from '~/middleware/rbac'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState, useMemo } from 'react'
+
+const EVENT_MANAGER_ROLES = ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR']
 
 // Server function to fetch trainers
 const getTrainers = createServerFn({ method: 'GET' }).handler(async () => {
@@ -29,14 +31,9 @@ const createEventWithTrainers = createServerFn({ method: 'POST' })
     trainer_ids: number[]
   }) => data)
   .handler(async ({ data }) => {
-    const supabase = getSupabaseServerClient()
-    const user = await getCurrentUserRole()
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'])
 
-    // RBAC Check: Only ADMIN, COORDINATOR, and EVENT COORDINATOR can create events
-    // FIXED: Changed from blocking these roles to blocking everyone else
-    if (!['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'].includes(user?.role || '')) {
-      throw new Error('Unauthorized: Only Coordinators and Admins can create events')
-    }
+    const supabase = getSupabaseServerClient()
 
     // Create the event
     const { data: event, error: eventError } = await supabase
@@ -158,7 +155,7 @@ export const Route = createFileRoute('/_authed/events/create')({
     
     // FIXED: Only allow ADMIN, COORDINATOR, and EVENT COORDINATOR
     // Changed from blocking these roles to blocking everyone else
-    if (!['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'].includes(user?.role || '')) {
+    if (!user?.role || !EVENT_MANAGER_ROLES.includes(user.role)) {
       throw new Error('Unauthorized Access: Only Coordinators and Admins can create events')
     }
   },

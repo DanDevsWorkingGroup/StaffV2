@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
 
 // Server function to get trainer data
@@ -36,22 +37,9 @@ const updateTrainer = createServerFn({ method: 'POST' })
     status: string
   }) => data)
   .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), ['ADMIN'])
+
     const supabase = getSupabaseServerClient()
-    
-    // Check if user is admin
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Not authenticated')
-
-    const { data: currentTrainer } = await supabase
-      .from('trainers')
-      .select('role_id, roles(name)')
-      .eq('user_id', user.id)
-      .single()
-
-    // @ts-ignore
-    if (currentTrainer?.roles?.name !== 'ADMIN') {
-      throw new Error('Unauthorized: Only admins can update trainers')
-    }
 
     // Update trainer data (NO EMAIL - it's in auth.users)
     const { error } = await supabase
@@ -76,6 +64,11 @@ const updateTrainer = createServerFn({ method: 'POST' })
   })
 
 export const Route = createFileRoute('/_authed/trainer-overview/edit/$id')({
+  beforeLoad: ({ context }) => {
+    if (context.user?.role !== 'ADMIN') {
+      throw new Error('Unauthorized Access: Only Admins can edit trainer records')
+    }
+  },
   loader: async ({ params }) => await getTrainerData({ data: { trainerId: params.id } }),
   component: EditTrainerPage,
 })

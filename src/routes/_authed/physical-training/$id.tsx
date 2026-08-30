@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
 
 // ===== TYPE DEFINITIONS =====
@@ -72,11 +73,13 @@ const getSessionDetail = createServerFn({ method: 'GET' })
     })
 
 /**
- * Delete PT session (ADMIN/COORDINATOR only)
+ * Delete PT session — ADMIN / COORDINATOR / PT COORDINATOR only (FSD §5.1)
  */
 const deleteSession = createServerFn({ method: 'POST' })
     .inputValidator((id: number) => id)
     .handler(async ({ data: id }) => {
+      checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'PT COORDINATOR'])
+
         const supabase = getSupabaseServerClient()
 
         const { error } = await supabase
@@ -101,10 +104,10 @@ export const Route = createFileRoute('/_authed/physical-training/$id')({
 // ===== HELPER FUNCTIONS =====
 
 /**
- * Check if user can manage PT sessions
+ * Who may edit / delete PT sessions (FSD §5.1)
  */
 function canManageSessions(role?: string): boolean {
-    return role === 'ADMIN' || role === 'COORDINATOR'
+    return role === 'ADMIN' || role === 'COORDINATOR' || role === 'PT COORDINATOR'
 }
 
 /**
