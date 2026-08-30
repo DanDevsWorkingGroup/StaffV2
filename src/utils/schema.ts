@@ -20,6 +20,7 @@ export type TableName =
   | 'physical_training'
   | 'religious_activities'
   | 'dormitory_assignments'
+  | 'dormitory_visitors'
   | 'training_sessions'
   | 'event_trainer_schedule'
 
@@ -53,7 +54,11 @@ export const TABLE_COLUMNS: Record<TableName, Array<string>> = {
     'id', 'date', 'activity', 'in_charge', 'participants', 'created_at',
   ],
   dormitory_assignments: [
-    'id', 'room_id', 'trainer_id', 'check_in', 'check_out', 'status', 'created_at',
+    'id', 'room_id', 'trainer_id', 'visitor_id', 'check_in', 'check_out', 'status',
+    'created_at',
+  ],
+  dormitory_visitors: [
+    'id', 'name', 'organization', 'phone', 'id_number', 'notes', 'created_at',
   ],
   training_sessions: [
     'id', 'date', 'type', 'trainer_id', 'status', 'time_slot', 'created_at',
@@ -91,6 +96,7 @@ export const EMBED_FOREIGN_KEYS: Record<string, string> = {
   'trainers:users': 'user_id',
   'schedules:trainers': 'trainer_id',
   'dormitory_assignments:trainers': 'trainer_id',
+  'dormitory_assignments:dormitory_visitors': 'visitor_id',
   'training_sessions:trainers': 'trainer_id',
   'role_permissions:permissions': 'permission_id',
   'role_permissions:roles': 'role_id',
