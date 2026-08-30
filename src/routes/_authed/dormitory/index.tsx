@@ -43,7 +43,7 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
     .select(`
       *,
       trainer:trainers(id, name, rank),
-      visitor:dormitory_visitors(id, name, organization, phone, id_number)
+      visitor:dormitory_visitors(id, name, organization, phone, id_number, notes, batch_id)
     `)
     .order('room_id', { ascending: true })
 
@@ -89,12 +89,17 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
 // Shared helper: flat catalog of every room, used to validate assignment
 // targets and to distribute people across a building.
 // ---------------------------------------------------------------------------
-function roomCatalog(): Map<string, { id: string; capacity: number; building: BuildingType }> {
-  const map = new Map<string, { id: string; capacity: number; building: BuildingType }>()
+function roomCatalog(): Map<string, { id: string; capacity: number; building: BuildingType; floor: number }> {
+  const map = new Map<string, { id: string; capacity: number; building: BuildingType; floor: number }>()
   for (const building of generateAllBuildings()) {
     for (const floor of building.floors) {
       for (const room of floor.rooms) {
-        map.set(room.id, { id: room.id, capacity: room.capacity, building: building.name })
+        map.set(room.id, {
+          id: room.id,
+          capacity: room.capacity,
+          building: building.name,
+          floor: floor.floorNumber,
+        })
       }
     }
   }
@@ -102,9 +107,12 @@ function roomCatalog(): Map<string, { id: string; capacity: number; building: Bu
 }
 
 /**
- * Resolve an assignment target ("room:<id>" for one specific room, or
- * "auto:<BUILDING>" to spread across a whole building) into an ordered list of
- * candidate rooms.
+ * Resolve an assignment target into an ordered list of candidate rooms:
+ *   - "room:<id>"            a single specific room
+ *   - "auto:<BUILDING>"      spread across a whole building
+ *   - "floor:<BUILDING>:<n>" spread across one floor of a building
+ * The catalog is built ground-floor-first, so the natural iteration order is a
+ * sensible fill order.
  */
 function resolveTargetRooms(target: string): Array<{ id: string; capacity: number }> {
   const catalog = roomCatalog()
@@ -115,6 +123,11 @@ function resolveTargetRooms(target: string): Array<{ id: string; capacity: numbe
   if (target.startsWith('auto:')) {
     const building = target.slice(5)
     return [...catalog.values()].filter((r) => r.building === building)
+  }
+  if (target.startsWith('floor:')) {
+    const [, building, floorStr] = target.split(':')
+    const floor = Number(floorStr)
+    return [...catalog.values()].filter((r) => r.building === building && r.floor === floor)
   }
   return []
 }
@@ -235,6 +248,145 @@ const createAndAssignVisitor = createServerFn({ method: 'POST' })
     if (error) throw new Error(error.message)
 
     return { success: true }
+  })
+
+const MASS_VISITOR_LIMIT = 500
+
+// Server function to check a whole party of visitors from one organization into
+// a floor or a building at once. Creates one visitor record per person (name =
+// organization) and one assignment per bed, all sharing a batch_id.
+const massAssignVisitors = createServerFn({ method: 'POST' })
+  .inputValidator((data: {
+    organization: string
+    phone: string
+    notes: string
+    target: string
+    count: number // <= 0 means "fill every free bed in the target"
+  }) => data)
+  .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), [...DORMITORY_MANAGER_ROLES])
+
+    const organization = data.organization.trim()
+    if (!organization) return { error: 'Organization name is required.' }
+
+    const rooms = resolveTargetRooms(data.target)
+    if (rooms.length === 0) {
+      return { error: 'Choose a building or floor to assign into.' }
+    }
+
+    const supabase = getSupabaseServerClient()
+
+    const { data: existing } = await supabase
+      .from('dormitory_assignments')
+      .select('room_id')
+
+    const occupancy = new Map<string, number>()
+    for (const row of existing || []) {
+      occupancy.set(row.room_id, (occupancy.get(row.room_id) || 0) + 1)
+    }
+
+    const freeByRoom = rooms.map((r) => ({
+      id: r.id,
+      free: Math.max(0, r.capacity - (occupancy.get(r.id) || 0)),
+    }))
+    const totalFree = freeByRoom.reduce((sum, r) => sum + r.free, 0)
+    if (totalFree === 0) {
+      return { error: 'The selected target has no free beds.' }
+    }
+
+    const requested = data.count > 0 ? Math.floor(data.count) : totalFree
+    if (requested > MASS_VISITOR_LIMIT) {
+      return { error: `Too many at once — assign at most ${MASS_VISITOR_LIMIT} visitors per action.` }
+    }
+
+    const toPlace = Math.min(requested, totalFree)
+    const unplaced = Math.max(0, requested - toPlace)
+
+    const batchId = crypto.randomUUID()
+    const now = new Date().toISOString()
+
+    const visitorRows = Array.from({ length: toPlace }, () => ({
+      name: organization,
+      organization,
+      phone: data.phone.trim() || null,
+      notes: data.notes.trim() || null,
+      batch_id: batchId,
+    }))
+
+    const { data: createdVisitors, error: visitorError } = await supabase
+      .from('dormitory_visitors')
+      .insert(visitorRows)
+      .select()
+
+    if (visitorError || !createdVisitors || createdVisitors.length === 0) {
+      throw new Error(visitorError?.message || 'Failed to create visitor records')
+    }
+
+    const assignmentRows: Array<Record<string, unknown>> = []
+    let vi = 0
+    for (const room of freeByRoom) {
+      for (let i = 0; i < room.free && vi < createdVisitors.length; i++) {
+        assignmentRows.push({
+          visitor_id: createdVisitors[vi].id,
+          room_id: room.id,
+          check_in: now,
+          status: 'active',
+        })
+        vi++
+      }
+    }
+
+    const { error: assignError } = await supabase
+      .from('dormitory_assignments')
+      .insert(assignmentRows)
+
+    if (assignError) {
+      // Roll back the visitor records we just created so nothing is orphaned.
+      await supabase.from('dormitory_visitors').delete().eq('batch_id', batchId)
+      throw new Error(assignError.message)
+    }
+
+    return {
+      success: true,
+      assigned: assignmentRows.length,
+      unplaced,
+      roomsUsed: new Set(assignmentRows.map((r) => r.room_id)).size,
+    }
+  })
+
+// Server function to check out an entire visitor group (all records sharing a
+// batch_id) in one step.
+const checkOutVisitorGroup = createServerFn({ method: 'POST' })
+  .inputValidator((data: { batchId: string }) => data)
+  .handler(async ({ data }) => {
+    checkRole(await resolveUserRole(), [...DORMITORY_MANAGER_ROLES])
+
+    const supabase = getSupabaseServerClient()
+
+    const { data: visitors } = await supabase
+      .from('dormitory_visitors')
+      .select('id')
+      .eq('batch_id', data.batchId)
+
+    const ids = (visitors || []).map((v) => v.id)
+    if (ids.length === 0) {
+      return { error: 'That visitor group no longer exists.' }
+    }
+
+    // Chunk the assignment delete so the IN (...) list stays within D1's
+    // bound-parameter limit.
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50)
+      const { error } = await supabase
+        .from('dormitory_assignments')
+        .delete()
+        .in('visitor_id', chunk)
+      if (error) throw new Error(error.message)
+    }
+
+    await supabase.from('dormitory_visitors').delete().eq('batch_id', data.batchId)
+
+    return { success: true, removed: ids.length }
   })
 
 // Server function to remove an assignment (trainer or visitor) from a room
@@ -458,9 +610,10 @@ function occupantOf(assignment: any): { name: string; sub: string; kind: 'traine
     return { name: assignment.trainer.name, sub: assignment.trainer.rank || '', kind: 'trainer' }
   }
   if (assignment.visitor) {
+    const { name, organization } = assignment.visitor
     return {
-      name: assignment.visitor.name,
-      sub: assignment.visitor.organization || 'Visitor',
+      name,
+      sub: organization && organization !== name ? organization : 'Visitor',
       kind: 'visitor',
     }
   }
@@ -571,6 +724,22 @@ function DormitoryPage() {
     return { name: building.name, displayName: building.displayName, free }
   })
 
+  // Free beds per floor, for the "whole floor" targets (skipped for buildings
+  // that only have one floor, where it would just duplicate the building option)
+  const floorFreeBeds = allBuildings.flatMap((building) =>
+    building.floors.length <= 1
+      ? []
+      : building.floors.map((floor) => ({
+          building: building.name,
+          buildingDisplayName: building.displayName,
+          floor: floor.floorNumber,
+          floorName: floor.floorName,
+          free: allRooms
+            .filter((r) => r.building === building.name && r.floor === floor.floorNumber)
+            .reduce((sum, r) => sum + (r.capacity - r.assignments.length), 0),
+        })),
+  )
+
   // Handle remove trainer/visitor
   const handleRemove = async (assignmentId: number) => {
     if (!confirm('Remove this occupant from the room?')) {
@@ -583,6 +752,23 @@ function DormitoryPage() {
       await router.invalidate()
     } catch (error) {
       alert('Failed to remove occupant: ' + (error as Error).message)
+    } finally {
+      setIsRemoving(false)
+    }
+  }
+
+  // Check out a whole visitor group at once
+  const handleRemoveGroup = async (batchId: string) => {
+    if (!confirm('Check out this entire visitor group?')) {
+      return
+    }
+
+    setIsRemoving(true)
+    try {
+      await checkOutVisitorGroup({ data: { batchId } })
+      await router.invalidate()
+    } catch (error) {
+      alert('Failed to check out group: ' + (error as Error).message)
     } finally {
       setIsRemoving(false)
     }
@@ -690,9 +876,11 @@ function DormitoryPage() {
           unassignedTrainers={unassignedTrainers}
           availableRooms={availableRooms}
           buildingFreeBeds={buildingFreeBeds}
+          floorFreeBeds={floorFreeBeds}
           visitorAssignments={visitorAssignments}
           onChanged={() => router.invalidate()}
           onRemove={handleRemove}
+          onRemoveGroup={handleRemoveGroup}
           isRemoving={isRemoving}
         />
       )}
@@ -824,20 +1012,24 @@ function AssignPanel({
   unassignedTrainers,
   availableRooms,
   buildingFreeBeds,
+  floorFreeBeds,
   visitorAssignments,
   onChanged,
   onRemove,
+  onRemoveGroup,
   isRemoving,
 }: {
   unassignedTrainers: any[]
   availableRooms: Array<{ id: string; label: string; free: number; capacity: number; vip: boolean }>
   buildingFreeBeds: Array<{ name: string; displayName: string; free: number }>
+  floorFreeBeds: Array<{ building: string; buildingDisplayName: string; floor: number; floorName: string; free: number }>
   visitorAssignments: any[]
   onChanged: () => void | Promise<void>
   onRemove: (assignmentId: number) => void
+  onRemoveGroup: (batchId: string) => void
   isRemoving: boolean
 }) {
-  const [tab, setTab] = useState<'trainers' | 'visitors'>('trainers')
+  const [tab, setTab] = useState<'trainers' | 'visitors' | 'mass'>('trainers')
 
   // Trainers tab state
   const [rankFilter, setRankFilter] = useState('')
@@ -853,6 +1045,36 @@ function AssignPanel({
   const [visitorForm, setVisitorForm] = useState(emptyVisitor)
   const [visitorRoom, setVisitorRoom] = useState('')
   const [isAddingVisitor, setIsAddingVisitor] = useState(false)
+
+  // Mass visitors tab state
+  const emptyMass = { organization: '', phone: '', notes: '', target: '', count: '' }
+  const [massForm, setMassForm] = useState(emptyMass)
+  const [isMassAssigning, setIsMassAssigning] = useState(false)
+
+  // Visitor roster, split into individually-added guests and mass-checked-in groups
+  const { visitorGroups, soloVisitors } = useMemo(() => {
+    const groups = new Map<string, any[]>()
+    const solo: any[] = []
+    for (const a of visitorAssignments) {
+      const batchId = a.visitor?.batch_id
+      if (batchId) {
+        const list = groups.get(batchId) || []
+        list.push(a)
+        groups.set(batchId, list)
+      } else {
+        solo.push(a)
+      }
+    }
+    return {
+      visitorGroups: [...groups.entries()].map(([batchId, rows]) => ({
+        batchId,
+        organization: rows[0]?.visitor?.organization || rows[0]?.visitor?.name || 'Visitors',
+        count: rows.length,
+        rooms: new Set(rows.map((r) => r.room_id)).size,
+      })),
+      soloVisitors: solo,
+    }
+  }, [visitorAssignments])
 
   const ranks = useMemo(
     () => [...new Set(unassignedTrainers.map((t) => t.rank).filter(Boolean))].sort(),
@@ -946,16 +1168,71 @@ function AssignPanel({
     }
   }
 
-  const targetOptions = (
+  const handleMassAssign = async () => {
+    if (!massForm.organization.trim() || !massForm.target) {
+      setMessage({ kind: 'err', text: 'Organization and a destination are required.' })
+      return
+    }
+    setIsMassAssigning(true)
+    setMessage(null)
+    try {
+      const res: any = await massAssignVisitors({
+        data: {
+          organization: massForm.organization,
+          phone: massForm.phone,
+          notes: massForm.notes,
+          target: massForm.target,
+          count: massForm.count ? parseInt(massForm.count, 10) : 0,
+        },
+      })
+      if (res?.error) {
+        setMessage({ kind: 'err', text: res.error })
+      } else {
+        const parts = [
+          `Checked in ${res.assigned} visitor(s) from ${massForm.organization.trim()} across ${res.roomsUsed} room(s).`,
+        ]
+        if (res.unplaced) parts.push(`${res.unplaced} could not be placed — target full.`)
+        setMessage({ kind: res.unplaced ? 'warn' : 'ok', text: parts.join(' ') })
+        setMassForm(emptyMass)
+        await onChanged()
+      }
+    } catch (err) {
+      setMessage({ kind: 'err', text: (err as Error).message })
+    } finally {
+      setIsMassAssigning(false)
+    }
+  }
+
+  // Building + floor destinations, shared by the trainer and mass-visitor tabs
+  const areaTargetOptions = (
     <>
-      <option value="">Select destination…</option>
-      <optgroup label="Auto-fill a building">
+      <optgroup label="Whole building">
         {buildingFreeBeds.map((b) => (
           <option key={b.name} value={`auto:${b.name}`} disabled={b.free === 0}>
             {b.displayName} — {b.free} bed(s) free
           </option>
         ))}
       </optgroup>
+      {floorFreeBeds.length > 0 && (
+        <optgroup label="Whole floor">
+          {floorFreeBeds.map((f) => (
+            <option
+              key={`${f.building}:${f.floor}`}
+              value={`floor:${f.building}:${f.floor}`}
+              disabled={f.free === 0}
+            >
+              {f.buildingDisplayName} — {f.floorName} — {f.free} bed(s) free
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  )
+
+  const targetOptions = (
+    <>
+      <option value="">Select destination…</option>
+      {areaTargetOptions}
       <optgroup label="Specific room">
         {availableRooms.map((r) => (
           <option key={r.id} value={`room:${r.id}`}>
@@ -989,6 +1266,16 @@ function AssignPanel({
         >
           Temporary Visitors{visitorAssignments.length > 0 ? ` (${visitorAssignments.length})` : ''}
         </button>
+        <button
+          onClick={() => setTab('mass')}
+          className={`px-4 py-2 text-sm font-semibold -mb-px border-b-2 transition-colors ${
+            tab === 'mass'
+              ? 'border-blue-600 text-blue-700'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Mass Assign Visitors
+        </button>
       </div>
 
       {message && (
@@ -1005,7 +1292,7 @@ function AssignPanel({
         </div>
       )}
 
-      {tab === 'trainers' ? (
+      {tab === 'trainers' && (
         <div className="space-y-4">
           {/* Filters */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1119,7 +1406,9 @@ function AssignPanel({
             </button>
           </div>
         </div>
-      ) : (
+      )}
+
+      {tab === 'visitors' && (
         <div className="space-y-6">
           {/* Add visitor form */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -1196,34 +1485,158 @@ function AssignPanel({
             </div>
           </div>
 
-          {/* Current visitors */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">
-              Current visitors ({visitorAssignments.length})
-            </h3>
-            {visitorAssignments.length === 0 ? (
-              <p className="text-sm text-gray-500">No temporary visitors are checked in.</p>
-            ) : (
-              <div className="border border-gray-200 rounded-lg divide-y">
-                {visitorAssignments.map((a: any) => (
-                  <div key={a.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                    <span className="font-medium text-gray-800">{a.visitor.name}</span>
-                    {a.visitor.organization && (
-                      <span className="text-gray-500">{a.visitor.organization}</span>
-                    )}
-                    <span className="text-gray-400">{a.room_id}</span>
-                    <button
-                      onClick={() => onRemove(a.id)}
-                      disabled={isRemoving}
-                      className="ml-auto text-xs px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Check out
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          <CurrentVisitors
+            soloVisitors={soloVisitors}
+            visitorGroups={visitorGroups}
+            total={visitorAssignments.length}
+            onRemove={onRemove}
+            onRemoveGroup={onRemoveGroup}
+            isRemoving={isRemoving}
+          />
+        </div>
+      )}
+
+      {tab === 'mass' && (
+        <div className="space-y-6">
+          <p className="text-sm text-gray-600">
+            Check a whole party of guests from one organization into a floor or a building at
+            once. Only the organization name is required — one visitor record is created per bed.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Organization <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="text"
+                value={massForm.organization}
+                onChange={(e) => setMassForm({ ...massForm, organization: e.target.value })}
+                placeholder="e.g. JBPM Ibu Pejabat"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact phone</label>
+              <input
+                type="text"
+                value={massForm.phone}
+                onChange={(e) => setMassForm({ ...massForm, phone: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <input
+                type="text"
+                value={massForm.notes}
+                onChange={(e) => setMassForm({ ...massForm, notes: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Destination</label>
+              <select
+                value={massForm.target}
+                onChange={(e) => setMassForm({ ...massForm, target: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a floor or building…</option>
+                {areaTargetOptions}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Number of visitors
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={massForm.count}
+                onChange={(e) => setMassForm({ ...massForm, count: e.target.value })}
+                placeholder="Leave blank to fill every free bed"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
+
+          <button
+            onClick={handleMassAssign}
+            disabled={isMassAssigning || !massForm.organization.trim() || !massForm.target}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+          >
+            {isMassAssigning ? 'Assigning…' : 'Mass check in'}
+          </button>
+
+          <CurrentVisitors
+            soloVisitors={soloVisitors}
+            visitorGroups={visitorGroups}
+            total={visitorAssignments.length}
+            onRemove={onRemove}
+            onRemoveGroup={onRemoveGroup}
+            isRemoving={isRemoving}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Roster of currently checked-in visitors: mass-assigned parties collapse to one
+// row with a group check-out; individually added guests keep a per-person row.
+function CurrentVisitors({
+  soloVisitors,
+  visitorGroups,
+  total,
+  onRemove,
+  onRemoveGroup,
+  isRemoving,
+}: {
+  soloVisitors: any[]
+  visitorGroups: Array<{ batchId: string; organization: string; count: number; rooms: number }>
+  total: number
+  onRemove: (assignmentId: number) => void
+  onRemoveGroup: (batchId: string) => void
+  isRemoving: boolean
+}) {
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-700 mb-2">Current visitors ({total})</h3>
+      {total === 0 ? (
+        <p className="text-sm text-gray-500">No temporary visitors are checked in.</p>
+      ) : (
+        <div className="border border-gray-200 rounded-lg divide-y">
+          {visitorGroups.map((g) => (
+            <div key={g.batchId} className="flex items-center gap-3 px-3 py-2 text-sm bg-purple-50">
+              <span className="font-medium text-gray-800">{g.organization}</span>
+              <span className="text-gray-500">
+                {g.count} visitor(s) · {g.rooms} room(s)
+              </span>
+              <button
+                onClick={() => onRemoveGroup(g.batchId)}
+                disabled={isRemoving}
+                className="ml-auto text-xs px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50 disabled:opacity-50"
+              >
+                Check out all ({g.count})
+              </button>
+            </div>
+          ))}
+          {soloVisitors.map((a: any) => (
+            <div key={a.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+              <span className="font-medium text-gray-800">{a.visitor.name}</span>
+              {a.visitor.organization && (
+                <span className="text-gray-500">{a.visitor.organization}</span>
+              )}
+              <span className="text-gray-400">{a.room_id}</span>
+              <button
+                onClick={() => onRemove(a.id)}
+                disabled={isRemoving}
+                className="ml-auto text-xs px-2 py-1 border border-red-300 text-red-700 rounded hover:bg-red-50 disabled:opacity-50"
+              >
+                Check out
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

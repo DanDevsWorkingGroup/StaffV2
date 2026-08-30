@@ -58,7 +58,8 @@ export const TABLE_COLUMNS: Record<TableName, Array<string>> = {
     'created_at',
   ],
   dormitory_visitors: [
-    'id', 'name', 'organization', 'phone', 'id_number', 'notes', 'created_at',
+    'id', 'name', 'organization', 'phone', 'id_number', 'notes', 'batch_id',
+    'created_at',
   ],
   training_sessions: [
     'id', 'date', 'type', 'trainer_id', 'status', 'time_slot', 'created_at',
