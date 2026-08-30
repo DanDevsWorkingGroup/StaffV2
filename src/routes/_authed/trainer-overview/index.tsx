@@ -85,6 +85,9 @@ const createTrainer = createServerFn({ method: 'POST' })
     password?: string
   }) => data)
   .handler(async ({ data }) => {
+    // Only an ADMIN may create accounts; an ADMIN may assign any role, including
+    // ADMIN (appointing another administrator is a normal admin action — the
+    // AC-6 threat was a non-admin doing it, which the guard above blocks).
     checkRole(await resolveUserRole(), ['ADMIN'])
 
     const supabase = getSupabaseServerClient()
@@ -92,8 +95,7 @@ const createTrainer = createServerFn({ method: 'POST' })
     let userId = null
     let warning = null
 
-    // Validate the requested role against the roles table, and never let this
-    // form mint another ADMIN (promotion is a separate, deliberate action).
+    // Validate the requested role against the roles table.
     const { data: role } = await supabase
       .from('roles')
       .select('name')
@@ -101,9 +103,6 @@ const createTrainer = createServerFn({ method: 'POST' })
       .single()
     if (!role) {
       return { error: 'Invalid role selected' }
-    }
-    if (role.name === 'ADMIN') {
-      return { error: 'ADMIN accounts cannot be created through this form' }
     }
 
     console.log('🔍 Creating trainer with data:', { 

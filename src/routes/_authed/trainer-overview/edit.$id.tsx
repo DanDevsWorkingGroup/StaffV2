@@ -4,14 +4,14 @@ import { getSupabaseServerClient } from '~/utils/supabase'
 import { resolveUserRole, checkRole } from '~/middleware/rbac'
 import { useState } from 'react'
 
-// Server function to get trainer data
+// Server function to get trainer data + the role list for the dropdown
 const getTrainerData = createServerFn({ method: 'GET' })
   .inputValidator((data: { trainerId: string }) => data)
   .handler(async ({ data }) => {
     const supabase = getSupabaseServerClient()
-    
+
     const trainerId = parseInt(data.trainerId)
-    
+
     const { data: trainer, error } = await supabase
       .from('trainers')
       .select('*')
@@ -22,7 +22,12 @@ const getTrainerData = createServerFn({ method: 'GET' })
       throw new Error('Trainer not found')
     }
 
-    return trainer
+    const { data: roles } = await supabase
+      .from('roles')
+      .select('id, name, level')
+      .order('level', { ascending: true })
+
+    return { trainer, roles: roles || [] }
   })
 
 // Server function to update trainer
@@ -35,11 +40,36 @@ const updateTrainer = createServerFn({ method: 'POST' })
     department: string
     region: string
     status: string
+    role_id: string
   }) => data)
   .handler(async ({ data }) => {
-    checkRole(await resolveUserRole(), ['ADMIN'])
+    // Only an ADMIN may edit a trainer record, including changing its role.
+    const actor = await resolveUserRole()
+    checkRole(actor, ['ADMIN'])
 
     const supabase = getSupabaseServerClient()
+
+    // Validate the requested role against the roles table.
+    const { data: role } = await supabase
+      .from('roles')
+      .select('name')
+      .eq('id', data.role_id)
+      .single()
+    if (!role) {
+      return { error: 'Invalid role selected' }
+    }
+
+    // Guard against self-lockout: an ADMIN cannot change their own role.
+    if (actor.trainerId === data.trainerId) {
+      const { data: mine } = await supabase
+        .from('trainers')
+        .select('role_id')
+        .eq('id', data.trainerId)
+        .single()
+      if (mine && mine.role_id !== data.role_id) {
+        return { error: 'You cannot change your own role. Ask another administrator.' }
+      }
+    }
 
     // Update trainer data (NO EMAIL - it's in auth.users)
     const { error } = await supabase
@@ -51,6 +81,7 @@ const updateTrainer = createServerFn({ method: 'POST' })
         department: data.department,
         region: data.region,
         status: data.status,
+        role_id: data.role_id,
         updated_at: new Date().toISOString()
       })
       .eq('id', data.trainerId)
@@ -74,7 +105,7 @@ export const Route = createFileRoute('/_authed/trainer-overview/edit/$id')({
 })
 
 function EditTrainerPage() {
-  const trainer = Route.useLoaderData()
+  const { trainer, roles } = Route.useLoaderData()
   const navigate = useNavigate()
 
   const [formData, setFormData] = useState({
@@ -83,7 +114,8 @@ function EditTrainerPage() {
     specialization: trainer.specialization || '',
     department: trainer.department || '',
     region: trainer.region || '',
-    status: trainer.status || 'active'
+    status: trainer.status || 'active',
+    role_id: trainer.role_id || ''
   })
 
   const [isSaving, setIsSaving] = useState(false)
@@ -196,7 +228,17 @@ function EditTrainerPage() {
               ]}
               required
             />
+            <FormSelect
+              label="Role"
+              value={formData.role_id}
+              onChange={(value) => handleChange('role_id', value)}
+              options={roles.map((r: any) => ({ value: r.id, label: r.name }))}
+              required
+            />
           </div>
+          <p className="mt-2 text-xs text-gray-500">
+            Changing a trainer to ADMIN grants full system access, including the ability to create and delete accounts. You cannot change your own role.
+          </p>
         </div>
 
         {/* Action Buttons */}
