@@ -40,25 +40,60 @@ npm run dev
 | `npm run smoke`     | Logs in per role against a deployment, checks routes  |
 | `npm run deploy`    | Build and deploy by hand (see Deployment below)        |
 
-## Deployment
+## Environments
 
-Pushes to `main` are built and deployed automatically by
-[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/), which
-is connected to this repository. It runs:
+Three environments, each its own Worker and its own D1 database. Changes are
+promoted one way: **dev → staging → main**.
+
+| Branch    | Worker                 | D1 database            | Data                   |
+| --------- | ---------------------- | ---------------------- | ---------------------- |
+| `dev`     | `abpm-trainer-dev`     | `abpm-trainer-dev`     | `seeds/dummy.sql`      |
+| `staging` | `abpm-trainer-staging` | `abpm-trainer-staging` | `seeds/dummy.sql`      |
+| `main`    | `abpm-trainer`         | `abpm-trainer`         | real records           |
+
+Only production holds real people. Staging and dev are seeded with synthetic
+records covering all seven roles; every dummy account uses the password
+`AbpmDev123!`, with `admin@abpm.test`, `ptcoordinator@abpm.test` and so on, plus
+`trainer1@abpm.test` … `trainer33@abpm.test`.
+
+### Promotion
+
+`main` accepts pull requests only from `staging`, and `staging` only from `dev`.
+This is enforced by the `Check source branch` workflow, which branch protection
+marks as required — GitHub cannot express "only from this branch" on its own.
+An urgent production fix may branch as `hotfix/*` and target `main` directly;
+the check allows it and records a warning.
+
+### Deployment
+
+Each Worker is connected to this repository through
+[Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/) and
+watches its own branch, so no Cloudflare credentials are stored in GitHub.
+
+Because the Cloudflare Vite plugin resolves the target environment when it
+builds — writing an already-resolved config into `dist/` — `wrangler deploy
+--env staging` has no effect. The environment is chosen with `CLOUDFLARE_ENV`
+at build time, which is what each Worker's build command sets:
+
+| Worker                 | Build command                       | Deploy command       |
+| ---------------------- | ----------------------------------- | -------------------- |
+| `abpm-trainer`         | `npm run build`                     | `npx wrangler deploy` |
+| `abpm-trainer-staging` | `CLOUDFLARE_ENV=staging npm run build` | `npx wrangler deploy` |
+| `abpm-trainer-dev`     | `CLOUDFLARE_ENV=dev npm run build`     | `npx wrangler deploy` |
+
+To deploy by hand: `npm run deploy`, `npm run deploy:staging`,
+`npm run deploy:dev`.
+
+### Rebuilding a database
 
 ```sh
-npm run build      # build command
-npx wrangler deploy  # deploy command
+npm run db:setup -- dev        # migrations + dummy seed
+npm run db:setup -- staging
+npm run db:setup -- dev --local
 ```
 
-No Cloudflare credentials are stored in GitHub. The `CI` workflow only
-typechecks, tests and builds.
-
-The Worker name in the Cloudflare dashboard must match the `name` field in
-`wrangler.jsonc` (`abpm-trainer`), or the build fails.
-
-To deploy by hand — say, from a branch — run `npm run deploy` with your own
-`wrangler login`.
+Production refuses to seed without `--seed-production`, because
+`seeds/production.sql` replaces every row.
 
 ## Layout
 
