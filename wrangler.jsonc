@@ -27,6 +27,12 @@
       "vars": {
         "APP_ENV": "staging"
       },
+      // Reachable only on this hostname, which Cloudflare Access sits in front of.
+      // workers.dev is disabled so the Access gate cannot be side-stepped.
+      "routes": [
+        { "pattern": "staging.abpmtrainer.my", "custom_domain": true }
+      ],
+      "workers_dev": false,
       "observability": {
         "enabled": true
       },
@@ -42,6 +48,11 @@
       "vars": {
         "APP_ENV": "dev"
       },
+      // As above: Access-protected hostname only, no workers.dev bypass.
+      "routes": [
+        { "pattern": "dev.abpmtrainer.my", "custom_domain": true }
+      ],
+      "workers_dev": false,
       "observability": {
         "enabled": true
       },
