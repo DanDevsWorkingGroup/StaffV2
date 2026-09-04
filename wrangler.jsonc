@@ -7,11 +7,51 @@
   "observability": {
     "enabled": true
   },
+
+  // Top level is production, deployed from `main` as the Worker "abpm-trainer".
+  "vars": {
+    "APP_ENV": "production"
+  },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "abpm-trainer",
       "database_id": "08ce77d6-0eac-478b-a660-7ea049f9a295"
     }
-  ]
+  ],
+
+  // Named environments deploy as "abpm-trainer-<env>". Bindings and vars are
+  // NOT inherited from the top level, so each environment repeats them in full.
+  "env": {
+    "staging": {
+      "vars": {
+        "APP_ENV": "staging"
+      },
+      "observability": {
+        "enabled": true
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "abpm-trainer-staging",
+          "database_id": "6f7227b5-a84b-4381-b6e3-409e9264addc"
+        }
+      ]
+    },
+    "dev": {
+      "vars": {
+        "APP_ENV": "dev"
+      },
+      "observability": {
+        "enabled": true
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "abpm-trainer-dev",
+          "database_id": "1af77a20-e765-47cd-aaa8-453d2a5abff1"
+        }
+      ]
+    }
+  }
 }

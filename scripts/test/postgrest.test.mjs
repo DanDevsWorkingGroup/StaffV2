@@ -2,7 +2,7 @@
  * Exercises the PostgREST-compatible D1 shim against real SQLite, using the
  * production schema. Run: node --experimental-strip-types scripts/test/postgrest.test.mjs
  */
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
@@ -11,10 +11,15 @@ import { createStubD1 } from './d1-stub.mjs'
 const here = dirname(fileURLToPath(import.meta.url))
 const root = join(here, '..', '..')
 
-const schema = readFileSync(join(root, 'migrations', '0001_schema.sql'), 'utf8')
-const etsSchema = readFileSync(join(root, 'migrations', '0003_event_trainer_schedule.sql'), 'utf8')
+// Apply every structural migration, in order, so the test database always
+// matches production rather than a hand-picked subset.
+const migrationDir = join(root, 'migrations')
+const migrations = readdirSync(migrationDir)
+  .filter((f) => /^\d+.*\.sql$/.test(f))
+  .sort()
+  .map((f) => readFileSync(join(migrationDir, f), 'utf8'))
 
-const { database, sqlite } = createStubD1([schema, etsSchema])
+const { database, sqlite } = createStubD1(migrations)
 
 // Point the Worker `env` stub at our SQLite-backed D1 before importing the shim.
 const cf = await import('./cloudflare-workers-stub.mjs')
@@ -286,6 +291,47 @@ await test('delete without select() still removes rows', async () => {
   assert.equal(error, null)
   const { data } = await from('event_trainer_schedule').select('*').eq('event_id', 10)
   assert.equal(data.length, 0)
+})
+
+// --- dormitory visitors (added after the port, by 0004/0005) ------------------
+await test('a dormitory assignment can point at a visitor instead of a trainer', async () => {
+  const v = await from('dormitory_visitors')
+    .insert({ name: 'Guest Instructor', organization: 'JBPM', batch_id: 'batch-1' })
+    .select()
+    .single()
+  assert.equal(v.error, null)
+
+  const a = await from('dormitory_assignments')
+    .insert({ room_id: 'Block A - Room 9', visitor_id: v.data.id, status: 'active' })
+    .select()
+    .single()
+  assert.equal(a.error, null)
+  assert.equal(a.data.trainer_id, null)
+  assert.equal(a.data.visitor_id, v.data.id)
+})
+
+await test('embedded visitor resolves on a dormitory assignment', async () => {
+  const { data } = await from('dormitory_assignments')
+    .select('*, visitor:dormitory_visitors(id, name, organization)')
+    .eq('room_id', 'Block A - Room 9')
+  assert.equal(data.length, 1)
+  assert.equal(data[0].visitor.name, 'Guest Instructor')
+  assert.equal(data[0].visitor.organization, 'JBPM')
+})
+
+await test('a visitor batch can be selected and removed as a group', async () => {
+  await from('dormitory_visitors').insert([
+    { name: 'Party A', organization: 'MOH', batch_id: 'batch-2' },
+    { name: 'Party B', organization: 'MOH', batch_id: 'batch-2' },
+    { name: 'Solo', organization: 'MOH', batch_id: null },
+  ])
+  const { data } = await from('dormitory_visitors').select('id, name').eq('batch_id', 'batch-2')
+  assert.equal(data.length, 2)
+
+  const { error } = await from('dormitory_visitors').delete().eq('batch_id', 'batch-2')
+  assert.equal(error, null)
+  const { data: left } = await from('dormitory_visitors').select('id').eq('batch_id', 'batch-2')
+  assert.equal(left.length, 0)
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

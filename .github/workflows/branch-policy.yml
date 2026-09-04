@@ -1,0 +1,51 @@
+name: Branch policy
+
+# Changes flow one way: dev -> staging -> main.
+#
+# GitHub branch protection can require a pull request, but it cannot restrict
+# which branch that pull request comes from. This check does that, and is meant
+# to be marked as a required status check on `main` and `staging`.
+
+on:
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  source-branch:
+    name: Check source branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify the pull request comes from the branch below it
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+        run: |
+          case "$BASE" in
+            main)    EXPECTED=staging ;;
+            staging) EXPECTED=dev ;;
+            *)       echo "No policy for base '$BASE'; nothing to check."; exit 0 ;;
+          esac
+
+          # Hotfixes are allowed straight into main, but must be named so they
+          # are obvious in the history and in review.
+          if [ "$BASE" = "main" ] && case "$HEAD" in hotfix/*) true ;; *) false ;; esac; then
+            echo "::warning::'$HEAD' is a hotfix going straight into main, bypassing staging."
+            exit 0
+          fi
+
+          if [ "$HEAD" != "$EXPECTED" ]; then
+            echo "::error::Pull requests into '$BASE' must come from '$EXPECTED', but this one is from '$HEAD'."
+            echo ""
+            echo "The promotion path is dev -> staging -> main."
+            echo "Open this against '$EXPECTED' instead, or merge into '$EXPECTED' first and promote from there."
+            echo "For an urgent production fix, branch as 'hotfix/<name>' and target main directly."
+            exit 1
+          fi
+
+          if [ "$SAME_REPO" != "true" ]; then
+            echo "::error::Pull requests into '$BASE' must come from a branch in this repository, not a fork."
+            exit 1
+          fi
+
+          echo "'$HEAD' -> '$BASE' follows the promotion path."

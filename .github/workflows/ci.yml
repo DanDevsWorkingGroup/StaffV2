@@ -2,12 +2,12 @@ name: CI
 
 on:
   push:
-    branches: ['main']
+    branches: [main, staging, dev]
   pull_request:
   workflow_dispatch:
 
-# Deployment is handled by Cloudflare Workers Builds, which builds and deploys
-# straight from this repository. This workflow only verifies the code.
+# Deployment is handled by Cloudflare Workers Builds: one Worker per branch,
+# each with its own D1. This workflow only verifies the code.
 jobs:
   verify:
     name: Typecheck, test and build
@@ -29,5 +29,28 @@ jobs:
       - name: Test the D1 query layer
         run: npm test
 
+      # Build the environment this branch actually deploys to, so a config
+      # mistake in wrangler.jsonc fails here rather than in Workers Builds.
       - name: Build
-        run: npm run build
+        run: |
+          case "${GITHUB_REF_NAME}" in
+            staging) npm run build:staging ;;
+            dev)     npm run build:dev ;;
+            *)       npm run build ;;
+          esac
+
+      - name: Confirm the build targeted the right Worker and database
+        run: |
+          node -e "
+            const c = require('./dist/server/wrangler.json');
+            const branch = process.env.GITHUB_REF_NAME;
+            const expected = branch === 'staging' ? 'abpm-trainer-staging'
+                           : branch === 'dev'     ? 'abpm-trainer-dev'
+                           : 'abpm-trainer';
+            const db = c.d1_databases[0].database_name;
+            console.log('branch=' + branch + ' worker=' + c.name + ' d1=' + db);
+            if (c.name !== expected || db !== expected) {
+              console.error('Expected worker and database ' + expected);
+              process.exit(1);
+            }
+          "
