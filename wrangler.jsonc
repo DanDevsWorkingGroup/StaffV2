@@ -12,6 +12,14 @@
   "vars": {
     "APP_ENV": "production"
   },
+  // The live site. The old Node/Supabase deployment it replaced stays reachable
+  // at legacy.abpmtrainer.my.
+  "routes": [
+    { "pattern": "abpmtrainer.my", "custom_domain": true },
+    { "pattern": "www.abpmtrainer.my", "custom_domain": true }
+  ],
+  // Kept on as a fallback route while the cut-over beds in.
+  "workers_dev": true,
   "d1_databases": [
     {
       "binding": "DB",
