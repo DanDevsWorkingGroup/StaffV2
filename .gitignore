@@ -30,3 +30,8 @@ dist/
 # Project-scoped wrangler credentials — contains an OAuth token, never commit
 .wrangler-home/
 .tanstack/
+
+# Local Worker secrets for `wrangler dev` (OTP_PEPPER, RESEND_API_KEY, ...)
+.dev.vars
+
+.claude/

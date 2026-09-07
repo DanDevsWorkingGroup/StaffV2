@@ -84,6 +84,31 @@ at build time, which is what each Worker's build command sets:
 To deploy by hand: `npm run deploy`, `npm run deploy:staging`,
 `npm run deploy:dev`.
 
+### Secrets
+
+The password-reset flow needs three Worker secrets, set **per environment** —
+secrets do not carry between Workers:
+
+| Secret | Purpose |
+| ---------------- | ------------------------------------------------------ |
+| `OTP_PEPPER`     | HMAC key for stored OTP digests (`openssl rand -base64 32`) |
+| `RESEND_API_KEY` | Transactional email, via [Resend](https://resend.com)   |
+| `EMAIL_FROM`     | e.g. `ABPM Trainer System <no-reply@abpmtrainer.my>`    |
+
+```sh
+npx wrangler secret put OTP_PEPPER --name abpm-trainer-dev
+npx wrangler secret put OTP_PEPPER --name abpm-trainer-staging
+npx wrangler secret put OTP_PEPPER            # production
+```
+
+They must not go in `.env`, which is a Vite build-time file — `VITE_*` values
+from it are inlined into the client bundle. For local `wrangler dev`, use
+`.dev.vars` (gitignored). Without them the reset flow still runs; codes simply
+are not emailed.
+
+Full setup, including the DNS records for the sending domain, is in
+[docs/password-reset-setup.md](docs/password-reset-setup.md).
+
 ### Rebuilding a database
 
 ```sh

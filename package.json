@@ -11,7 +11,7 @@
     "deploy": "npm run build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "build:icons": "node scripts/build-icons.mjs",
-    "test": "node --experimental-strip-types --import ./scripts/test/register.mjs scripts/test/postgrest.test.mjs",
+    "test": "node --experimental-strip-types --import ./scripts/test/register.mjs scripts/test/postgrest.test.mjs && node --experimental-strip-types --import ./scripts/test/register.mjs scripts/test/passwordReset.test.mjs",
     "smoke": "node scripts/smoke.mjs",
     "build:staging": "CLOUDFLARE_ENV=staging vite build",
     "build:dev": "CLOUDFLARE_ENV=dev vite build",
