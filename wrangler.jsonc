@@ -28,6 +28,40 @@
     }
   ],
 
+  // Burst guards for the logged-out password-reset flow.
+  //
+  // These are NOT the real limits. Counters are per-Cloudflare-location and
+  // eventually consistent, so this layer only blunts hammering; the
+  // authoritative hourly caps live in the `password_reset_throttle` table in D1
+  // (see src/utils/passwordReset.ts). `period` may only be 10 or 60.
+  //
+  // The code treats a missing binding as "no burst guard" rather than an error,
+  // so local dev works without these.
+  //
+  // Every environment declares its own block with its OWN namespace_id. Two
+  // bindings that share a namespace_id share their counters across Workers on
+  // the same account, so reusing these ids in dev or staging would let test
+  // traffic consume production's rate-limit budget.
+  "ratelimits": [
+    {
+      "name": "PW_RESET_REQUEST",
+      "namespace_id": "2001",
+      "simple": { "limit": 3, "period": 60 }
+    },
+    {
+      "name": "PW_RESET_VERIFY",
+      "namespace_id": "2002",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
+
+  // Secrets used by the reset flow — set per Worker with `wrangler secret put`,
+  // never committed and never in .env (Vite inlines VITE_* into the client
+  // bundle). Secrets do NOT carry between environments.
+  //   OTP_PEPPER      HMAC key for the stored OTP digests
+  //   RESEND_API_KEY  https://resend.com
+  //   EMAIL_FROM      e.g. "ABPM Trainer System <no-reply@abpmtrainer.my>"
+
   // Named environments deploy as "abpm-trainer-<env>". Bindings and vars are
   // NOT inherited from the top level, so each environment repeats them in full.
   "env": {
@@ -50,6 +84,18 @@
           "database_name": "abpm-trainer-staging",
           "database_id": "6f7227b5-a84b-4381-b6e3-409e9264addc"
         }
+      ],
+      "ratelimits": [
+        {
+          "name": "PW_RESET_REQUEST",
+          "namespace_id": "2011",
+          "simple": { "limit": 3, "period": 60 }
+        },
+        {
+          "name": "PW_RESET_VERIFY",
+          "namespace_id": "2012",
+          "simple": { "limit": 10, "period": 60 }
+        }
       ]
     },
     "dev": {
@@ -69,6 +115,18 @@
           "binding": "DB",
           "database_name": "abpm-trainer-dev",
           "database_id": "1af77a20-e765-47cd-aaa8-453d2a5abff1"
+        }
+      ],
+      "ratelimits": [
+        {
+          "name": "PW_RESET_REQUEST",
+          "namespace_id": "2021",
+          "simple": { "limit": 3, "period": 60 }
+        },
+        {
+          "name": "PW_RESET_VERIFY",
+          "namespace_id": "2022",
+          "simple": { "limit": 10, "period": 60 }
         }
       ]
     }

@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import { useState } from 'react'
 
 export function Auth({
@@ -103,9 +104,12 @@ export function Auth({
 
           {actionText === 'Login' && (
             <div className="flex justify-between items-center text-sm mt-4">
-              <a href="#" className="text-gray-400 hover:text-white transition-colors ml-auto">
+              <Link
+                to="/forgot-password"
+                className="text-gray-400 hover:text-white transition-colors ml-auto"
+              >
                 Forgot your password?
-              </a>
+              </Link>
             </div>
           )}
 

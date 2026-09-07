@@ -60,7 +60,12 @@ export async function hashPassword(password: string): Promise<string> {
   return `pbkdf2$sha256$${PBKDF2_ITERATIONS}$${toBase64(salt)}$${toBase64(derived)}`
 }
 
-function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+/**
+ * Length-checked, XOR-accumulating comparison with no early return, so the time
+ * taken does not depend on how many leading bytes match. Also used by the OTP
+ * flow in `./passwordReset` to compare code digests.
+ */
+export function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
   if (a.length !== b.length) return false
   let diff = 0
   for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i]
@@ -98,7 +103,7 @@ function needsRehash(stored: string): boolean {
 // leaked database row cannot be replayed as a session.
 // ---------------------------------------------------------------------------
 
-async function sha256Hex(value: string): Promise<string> {
+export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     'SHA-256',
     new TextEncoder().encode(value),
@@ -108,7 +113,8 @@ async function sha256Hex(value: string): Promise<string> {
     .join('')
 }
 
-function newToken(): string {
+/** 32 random bytes, base64url. Used for session tokens and password-reset tickets. */
+export function newToken(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32))
   return toBase64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
@@ -204,6 +210,35 @@ export async function signIn(
 // Public self-registration (signUp) was removed: the client requirement is that
 // accounts are created only by an ADMIN, via adminCreateUser() below. See the
 // FSD §4 / TSD §6.
+
+/**
+ * Delete every session row for a user, signing them out on every device.
+ *
+ * Called after a password reset. Sessions here are pure database rows — there
+ * are no stateless JWTs to outlive this — so the delete really is total.
+ */
+export async function invalidateAllSessions(userId: string): Promise<void> {
+  await run('DELETE FROM sessions WHERE user_id = ?', userId)
+}
+
+/**
+ * Hash and store a new password. Always writes a fresh PBKDF2 hash, so an
+ * account still carrying a legacy bcrypt hash is upgraded by the reset too.
+ *
+ * Deliberately does NOT touch sessions — callers decide that. For a password
+ * reset, pair it with `invalidateAllSessions()`.
+ */
+export async function setUserPassword(
+  userId: string,
+  password: string,
+): Promise<void> {
+  await run(
+    'UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?',
+    await hashPassword(password),
+    new Date().toISOString(),
+    userId,
+  )
+}
 
 export async function signOut(): Promise<void> {
   const token = getCookie(SESSION_COOKIE)
