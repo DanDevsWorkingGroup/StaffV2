@@ -7,17 +7,20 @@
  * jar. `__reset()` clears it between tests.
  */
 const jar = new Map()
+const optsJar = new Map() // last-set options per cookie, so tests can assert path/httpOnly/etc.
 
 export function getCookie(name) {
   return jar.get(name)
 }
 
-export function setCookie(name, value) {
+export function setCookie(name, value, opts) {
   jar.set(name, value)
+  optsJar.set(name, opts ?? {})
 }
 
 export function deleteCookie(name) {
   jar.delete(name)
+  optsJar.delete(name)
 }
 
 export function getRequest() {
@@ -30,8 +33,13 @@ export function getRequest() {
 
 export function __reset() {
   jar.clear()
+  optsJar.clear()
 }
 
 export function __get(name) {
   return jar.get(name)
+}
+
+export function __getOpts(name) {
+  return optsJar.get(name)
 }

@@ -381,6 +381,15 @@ await test('correct code verifies and issues a ticket', async () => {
   assert.ok(row.verified_at)
   assert.match(row.ticket_hash, /^[0-9a-f]{64}$/)
   assert.ok(cookies.__get('abpm_pwreset'), 'ticket cookie should be set')
+  // Step 3 (completePasswordReset) is a createServerFn POSTed to /_serverFn/...,
+  // not /forgot-password. The ticket cookie must be path '/' or the browser
+  // never sends it back and every reset fails at the final step.
+  assert.equal(
+    cookies.__getOpts('abpm_pwreset')?.path,
+    '/',
+    'ticket cookie must be path=/ so the /_serverFn step-3 request carries it',
+  )
+  assert.equal(cookies.__getOpts('abpm_pwreset')?.httpOnly, true)
 })
 
 await test('spaced code is accepted', async () => {

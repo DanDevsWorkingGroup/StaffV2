@@ -88,7 +88,14 @@ const MAX_REQUESTS_PER_IP_PER_HOUR = 10
 const RESPONSE_FLOOR_MS = 400
 
 const TICKET_COOKIE = 'abpm_pwreset'
-const TICKET_COOKIE_PATH = '/forgot-password'
+// Must be '/', not '/forgot-password': the three steps are createServerFn()
+// calls, which the browser POSTs to /_serverFn/<id>. A cookie scoped to
+// /forgot-password is set fine on step 2 but never sent back on step 3's
+// /_serverFn request, so completePasswordReset() sees no ticket. The cookie is
+// httpOnly + secure + sameSite=lax + single-use with only its SHA-256 in D1, so
+// the wider path is not a meaningful exposure (abpm_session is '/' for the same
+// reason).
+const TICKET_COOKIE_PATH = '/'
 
 /** Minimum length for a new password. There is no policy elsewhere in the app. */
 export const MIN_PASSWORD_LENGTH = 10
