@@ -13,7 +13,7 @@
  * discarded, not returning early) exist precisely to hold that property.
  */
 import { deleteCookie, getCookie, setCookie } from '@tanstack/react-start/server'
-import { env } from 'cloudflare:workers'
+import { env, waitUntil } from 'cloudflare:workers'
 import { first, run } from './db'
 import {
   invalidateAllSessions,
@@ -416,10 +416,13 @@ export async function requestPasswordResetOtp(
         ip,
       )
 
-      // Not awaited. The caller's wait must never be a function of the mail
-      // provider's latency — that would reintroduce the timing oracle that
-      // `withFloor` exists to close. `sendEmail` never throws.
-      void sendEmail(resetCodeEmail(user.email, code, CODE_TTL_MS / 60000))
+      // Not awaited into the response — the caller's wait must never be a
+      // function of the mail provider's latency, or the timing oracle that
+      // `withFloor` closes comes back. But it must be `waitUntil`'d, not a bare
+      // `void`: an un-tracked promise gets its in-flight `fetch` to Resend
+      // cancelled the moment the handler returns, so nothing is ever sent.
+      // `sendEmail` never throws.
+      waitUntil(sendEmail(resetCodeEmail(user.email, code, CODE_TTL_MS / 60000)))
 
       logCodeForDevOnly(user.email, code)
     }
@@ -615,8 +618,9 @@ export async function completePasswordReset(
     deleteCookie('abpm_session', { path: '/' })
 
     // Non-actionable notification: this is how a user finds out if somebody
-    // else reset their password.
-    void sendEmail(passwordChangedEmail(account.email))
+    // else reset their password. `waitUntil`, not `void` — see the comment on
+    // the step-1 send.
+    waitUntil(sendEmail(passwordChangedEmail(account.email)))
 
     return { ok: true as const }
   }, failure)
