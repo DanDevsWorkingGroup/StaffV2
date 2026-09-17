@@ -2,11 +2,17 @@ import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
 import { resolveUserRole, checkRole } from '~/middleware/rbac'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 const EVENT_MANAGER_ROLES = ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR']
 
-// Get event
+// Get event, plus the trainers currently assigned to it.
+//
+// There is no event_id column on `schedules` — the only link between a
+// schedule row and the event that created it is the free-text
+// `notes = "Assigned to: <event name>"` convention established by
+// createEventWithTrainers in create.tsx. We reuse that same convention here
+// so the edit form can show (and correctly replace) the current assignment.
 const getEvent = createServerFn({ method: 'GET' })
     .inputValidator((id: string) => id)
     .handler(async ({ data: id }) => {
@@ -19,18 +25,29 @@ const getEvent = createServerFn({ method: 'GET' })
             .single()
 
         if (error) throw error
-        return { event }
+
+        const { data: scheduleRows } = await supabase
+            .from('schedules')
+            .select('trainer_id')
+            .eq('notes', `Assigned to: ${event.name}`)
+
+        const assignedTrainerIds = Array.from(
+            new Set((scheduleRows || []).map((r: any) => r.trainer_id))
+        )
+
+        return { event, assignedTrainerIds }
     })
 
-// Get all trainers
+// Get all trainers (full columns, needed for the search/rank/department/
+// specialization filters — mirrors getTrainers in create.tsx).
 const getAllTrainers = createServerFn({ method: 'GET' }).handler(async () => {
     const supabase = getSupabaseServerClient()
 
     const { data: trainers } = await supabase
         .from('trainers')
-        .select('id, name, rank')
+        .select('*')
         .eq('status', 'active')
-        .order('rank', { ascending: true })
+        .order('name', { ascending: true })
 
     return { trainers: trainers || [] }
 })
@@ -42,6 +59,18 @@ const updateEvent = createServerFn({ method: 'POST' })
         checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR', 'EVENT COORDINATOR'])
 
         const supabase = getSupabaseServerClient()
+
+        // Read the event as it stands BEFORE this update, so we know which
+        // notes value ("Assigned to: <old name>") tags its existing schedule
+        // rows. Renaming an event and reassigning trainers in the same save
+        // must still find and replace the old rows.
+        const { data: existingEvent, error: existingError } = await supabase
+            .from('events')
+            .select('name')
+            .eq('id', data.id)
+            .single()
+
+        if (existingError) throw existingError
 
         const { error } = await supabase
             .from('events')
@@ -57,24 +86,67 @@ const updateEvent = createServerFn({ method: 'POST' })
 
         if (error) throw error
 
-        // Update trainer assignments if provided
+        // Reconcile trainer assignments against `schedules` — the table the
+        // Schedule Dashboard and Trainer Overview actually read. (The old
+        // code wrote to `event_trainer_schedule` instead, a table no screen
+        // reads, which is why reassignment silently had no visible effect.)
         if (data.trainer_ids) {
-            // Delete existing assignments
-            await supabase
-                .from('event_trainer_schedule')
+            const { getSupabaseAdminClient } = await import('~/utils/supabase')
+            const adminClient = getSupabaseAdminClient()
+            const clientToUse = adminClient || supabase
+
+            // Remove every schedule row this event previously created,
+            // regardless of which trainers held them, so a shortened date
+            // range or a dropped trainer's rows don't linger.
+            await clientToUse
+                .from('schedules')
                 .delete()
-                .eq('event_id', data.id)
+                .eq('notes', `Assigned to: ${existingEvent.name}`)
 
-            // Insert new assignments
             if (data.trainer_ids.length > 0) {
-                const assignments = data.trainer_ids.map((trainer_id: number) => ({
-                    event_id: parseInt(data.id),
-                    trainer_id,
-                }))
+                const scheduleEntries = []
+                const start = new Date(data.start_date)
+                const end = new Date(data.end_date)
 
-                await supabase
-                    .from('event_trainer_schedule')
-                    .insert(assignments)
+                const diffTime = Math.abs(end.getTime() - start.getTime())
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+                for (let i = 0; i <= diffDays; i++) {
+                    const currentDate = new Date(start)
+                    currentDate.setDate(start.getDate() + i)
+
+                    const year = currentDate.getFullYear()
+                    const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+                    const day = String(currentDate.getDate()).padStart(2, '0')
+                    const dateStr = `${year}-${month}-${day}`
+
+                    if (dateStr > data.end_date) break
+
+                    for (const trainerId of data.trainer_ids) {
+                        scheduleEntries.push({
+                            trainer_id: trainerId,
+                            date: dateStr,
+                            status: 'scheduled',
+                            availability: [],
+                            notes: `Assigned to: ${data.name}`,
+                        })
+                    }
+                }
+
+                const { error: scheduleError } = await clientToUse
+                    .from('schedules')
+                    .insert(scheduleEntries)
+
+                if (scheduleError) {
+                    console.error('Error creating schedules:', scheduleError)
+                    if (adminClient) {
+                        console.log('Retrying with standard client...')
+                        const { error: retryError } = await supabase
+                            .from('schedules')
+                            .insert(scheduleEntries)
+                        if (retryError) console.error('Retry failed:', retryError)
+                    }
+                }
             }
         }
 
@@ -113,7 +185,7 @@ const EVENT_COLORS = [
 ]
 
 function EditEventPage() {
-    const { event, trainers } = Route.useLoaderData()
+    const { event, trainers, assignedTrainerIds } = Route.useLoaderData()
     const navigate = useNavigate()
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -126,7 +198,51 @@ function EditEventPage() {
         color: event.color || '#3b82f6',
     })
 
-    const [selectedTrainers, setSelectedTrainers] = useState<number[]>([])
+    // Preload the event's current trainer assignment instead of starting empty.
+    const [selectedTrainers, setSelectedTrainers] = useState<number[]>(assignedTrainerIds || [])
+
+    // Search and filter state — mirrors create.tsx so editing has the same
+    // trainer-finding tools as creating.
+    const [searchTerm, setSearchTerm] = useState('')
+    const [selectedRank, setSelectedRank] = useState<string>('all')
+    const [selectedDepartment, setSelectedDepartment] = useState<string>('all')
+    const [selectedSpecialization, setSelectedSpecialization] = useState<string>('all')
+
+    const { ranks, departments, specializations } = useMemo(() => {
+        const ranksSet = new Set<string>()
+        const departmentsSet = new Set<string>()
+        const specializationsSet = new Set<string>()
+
+        trainers.forEach((trainer: any) => {
+            if (trainer.rank) ranksSet.add(trainer.rank)
+            if (trainer.department) departmentsSet.add(trainer.department)
+            if (trainer.specialization) specializationsSet.add(trainer.specialization)
+        })
+
+        return {
+            ranks: Array.from(ranksSet).sort(),
+            departments: Array.from(departmentsSet).sort(),
+            specializations: Array.from(specializationsSet).sort(),
+        }
+    }, [trainers])
+
+    const filteredTrainers = useMemo(() => {
+        return trainers.filter((trainer: any) => {
+            const matchesSearch =
+                trainer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                trainer.ic_number?.toLowerCase().includes(searchTerm.toLowerCase())
+
+            const matchesRank = selectedRank === 'all' || trainer.rank === selectedRank
+            const matchesDepartment = selectedDepartment === 'all' || trainer.department === selectedDepartment
+            const matchesSpecialization = selectedSpecialization === 'all' || trainer.specialization === selectedSpecialization
+
+            return matchesSearch && matchesRank && matchesDepartment && matchesSpecialization
+        })
+    }, [trainers, searchTerm, selectedRank, selectedDepartment, selectedSpecialization])
+
+    const selectedTrainerRecords = useMemo(() => {
+        return trainers.filter((t: any) => selectedTrainers.includes(t.id))
+    }, [trainers, selectedTrainers])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -159,8 +275,24 @@ function EditEventPage() {
         )
     }
 
+    const handleSelectAll = () => {
+        const allFilteredIds = filteredTrainers.map((t: any) => t.id)
+        setSelectedTrainers(prev => [...new Set([...prev, ...allFilteredIds])])
+    }
+
+    const handleDeselectAll = () => {
+        setSelectedTrainers([])
+    }
+
+    const handleClearFilters = () => {
+        setSearchTerm('')
+        setSelectedRank('all')
+        setSelectedDepartment('all')
+        setSelectedSpecialization('all')
+    }
+
     return (
-        <div className="max-w-4xl mx-auto space-y-6">
+        <div className="max-w-5xl mx-auto space-y-6">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
                 <div className="flex items-center justify-between">
@@ -258,26 +390,183 @@ function EditEventPage() {
 
                 {/* Trainer Selection */}
                 <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-3">
-                        Assign Trainers ({selectedTrainers.length} selected)
-                    </label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto p-4 bg-gray-50 rounded-lg">
-                        {trainers.map((trainer: any) => (
-                            <label
-                                key={trainer.id}
-                                className="flex items-center space-x-3 p-3 bg-white rounded-lg border-2 border-gray-200 hover:border-blue-400 cursor-pointer transition"
+                    <div className="flex items-center justify-between mb-3">
+                        <label className="block text-sm font-semibold text-gray-700">
+                            Assign Trainers ({selectedTrainers.length} selected)
+                        </label>
+                        <div className="flex gap-2">
+                            <button
+                                type="button"
+                                onClick={handleSelectAll}
+                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
                             >
-                                <input
-                                    type="checkbox"
-                                    checked={selectedTrainers.includes(trainer.id)}
-                                    onChange={() => handleTrainerToggle(trainer.id)}
-                                    className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                                />
-                                <span className="font-medium text-gray-900">
-                                    {trainer.rank} {trainer.name}
+                                Select All Filtered
+                            </button>
+                            <span className="text-gray-300">|</span>
+                            <button
+                                type="button"
+                                onClick={handleDeselectAll}
+                                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                            >
+                                Deselect All
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Search and Filters */}
+                    <div className="bg-gray-50 border rounded-lg p-4 mb-4 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-gray-700">Search & Filter Trainers</h3>
+                            <button
+                                type="button"
+                                onClick={handleClearFilters}
+                                className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+                            >
+                                Clear Filters
+                            </button>
+                        </div>
+
+                        <div>
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Search by name or IC number..."
+                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Rank</label>
+                                <select
+                                    value={selectedRank}
+                                    onChange={(e) => setSelectedRank(e.target.value)}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="all">All Ranks</option>
+                                    {ranks.map(rank => (
+                                        <option key={rank} value={rank}>{rank}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Department</label>
+                                <select
+                                    value={selectedDepartment}
+                                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="all">All Departments</option>
+                                    {departments.map(dept => (
+                                        <option key={dept} value={dept}>{dept}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Specialization</label>
+                                <select
+                                    value={selectedSpecialization}
+                                    onChange={(e) => setSelectedSpecialization(e.target.value)}
+                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                                >
+                                    <option value="all">All Specializations</option>
+                                    {specializations.map(spec => (
+                                        <option key={spec} value={spec}>{spec}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-gray-600 pt-2 border-t">
+                            <span>
+                                Showing {filteredTrainers.length} of {trainers.length} trainers
+                            </span>
+                            {(searchTerm || selectedRank !== 'all' || selectedDepartment !== 'all' || selectedSpecialization !== 'all') && (
+                                <span className="text-blue-600 font-medium">
+                                    {filteredTrainers.length === 0 ? 'No matches found' : 'Filters active'}
                                 </span>
-                            </label>
-                        ))}
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Selected Trainers Summary */}
+                    {selectedTrainerRecords.length > 0 && (
+                        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <h3 className="font-semibold text-blue-900 mb-2">
+                                Selected Trainers ({selectedTrainerRecords.length})
+                            </h3>
+                            <div className="space-y-2 max-h-60 overflow-y-auto">
+                                {selectedTrainerRecords.map((trainer: any) => (
+                                    <div
+                                        key={trainer.id}
+                                        className="flex items-center justify-between bg-white px-3 py-2 rounded border border-blue-200"
+                                    >
+                                        <div>
+                                            <p className="font-medium text-sm text-gray-900">
+                                                {trainer.rank} {trainer.name}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                                {trainer.department || 'No department'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleTrainerToggle(trainer.id)}
+                                            className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                        >
+                                            Remove
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="border rounded-lg p-4 bg-gray-50">
+                        <p className="text-sm text-gray-600 mb-3">
+                            Select trainers who will be assigned to this event
+                            {selectedTrainers.length === 0 && ' (none selected)'}
+                        </p>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
+                            {filteredTrainers.map((trainer: any) => (
+                                <label
+                                    key={trainer.id}
+                                    className={`flex items-center space-x-3 p-3 rounded-lg border-2 cursor-pointer transition ${selectedTrainers.includes(trainer.id)
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200 bg-white hover:border-gray-300'
+                                        }`}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedTrainers.includes(trainer.id)}
+                                        onChange={() => handleTrainerToggle(trainer.id)}
+                                        className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-medium text-gray-900 truncate">
+                                            {trainer.rank} {trainer.name}
+                                        </p>
+                                        {(trainer.department || trainer.specialization) && (
+                                            <p className="text-xs text-gray-600 truncate">
+                                                {trainer.department}
+                                                {trainer.department && trainer.specialization && ' • '}
+                                                {trainer.specialization}
+                                            </p>
+                                        )}
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+
+                        {filteredTrainers.length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-4">
+                                No trainers match the current search/filters.
+                            </p>
+                        )}
                     </div>
                 </div>
 
