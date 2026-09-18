@@ -38,7 +38,7 @@ const DORMITORY_MANAGER_ROLES = ['ADMIN', 'COORDINATOR', 'DORMITORY COORDINATOR'
 const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
   const supabase = getSupabaseServerClient()
 
-  const { data: assignments } = await supabase
+  const { data: assignments, error: assignmentsError } = await supabase
     .from('dormitory_assignments')
     .select(`
       *,
@@ -47,10 +47,18 @@ const getDormitoryData = createServerFn({ method: 'GET' }).handler(async () => {
     `)
     .order('room_id', { ascending: true })
 
-  const { data: trainers } = await supabase
+  if (assignmentsError) {
+    throw new Error(`Failed to load dormitory assignments: ${assignmentsError.message}`)
+  }
+
+  const { data: trainers, error: trainersError } = await supabase
     .from('trainers')
     .select('*')
     .eq('status', 'active')
+
+  if (trainersError) {
+    throw new Error(`Failed to load trainers: ${trainersError.message}`)
+  }
 
   // Calculate statistics based on actual structure
   const buildings = generateAllBuildings()
@@ -261,7 +269,7 @@ const massAssignVisitors = createServerFn({ method: 'POST' })
     phone: string
     notes: string
     target: string
-    count: number // <= 0 means "fill every free bed in the target"
+    count: number | null // null means "left blank" — fill every free bed in the target
   }) => data)
   .handler(async ({ data }) => {
     checkRole(await resolveUserRole(), [...DORMITORY_MANAGER_ROLES])
@@ -294,7 +302,11 @@ const massAssignVisitors = createServerFn({ method: 'POST' })
       return { error: 'The selected target has no free beds.' }
     }
 
-    const requested = data.count > 0 ? Math.floor(data.count) : totalFree
+    if (data.count !== null && data.count <= 0) {
+      return { error: 'Number of visitors must be left blank (to fill every free bed) or a positive number.' }
+    }
+
+    const requested = data.count === null ? totalFree : Math.floor(data.count)
     if (requested > MASS_VISITOR_LIMIT) {
       return { error: `Too many at once — assign at most ${MASS_VISITOR_LIMIT} visitors per action.` }
     }
@@ -1173,6 +1185,12 @@ function AssignPanel({
       setMessage({ kind: 'err', text: 'Organization and a destination are required.' })
       return
     }
+    const trimmedCount = massForm.count.trim()
+    const parsedCount = trimmedCount === '' ? null : parseInt(trimmedCount, 10)
+    if (parsedCount !== null && (!Number.isFinite(parsedCount) || parsedCount <= 0)) {
+      setMessage({ kind: 'err', text: 'Number of visitors must be left blank (to fill every free bed) or a positive number.' })
+      return
+    }
     setIsMassAssigning(true)
     setMessage(null)
     try {
@@ -1182,7 +1200,7 @@ function AssignPanel({
           phone: massForm.phone,
           notes: massForm.notes,
           target: massForm.target,
-          count: massForm.count ? parseInt(massForm.count, 10) : 0,
+          count: parsedCount,
         },
       })
       if (res?.error) {
