@@ -519,20 +519,25 @@ class QueryBuilder<TRow = any> implements PromiseLike<PostgrestResponse<Array<TR
       const cols = embed.columns.includes('*') ? TABLE_COLUMNS[target] : embed.columns
       const projection = [...new Set([...cols, 'id'])]
 
-      const { results } = await db()
-        .prepare(
-          `SELECT ${projection.map((c) => `"${c}"`).join(', ')} FROM "${target}" ` +
-            `WHERE "id" IN (${ids.map(() => '?').join(', ')})`,
-        )
-        .bind(...ids)
-        .all<Record<string, unknown>>()
-
+      // D1 caps bound parameters per statement, so resolve the IN (...) in batches.
       const byId = new Map<unknown, Record<string, unknown>>()
-      for (const related of results ?? []) {
-        const decoded = decodeRow(target, { ...related })
-        const id = decoded.id
-        if (!cols.includes('id')) delete decoded.id
-        byId.set(id, decoded)
+      const batchSize = 100
+      for (let i = 0; i < ids.length; i += batchSize) {
+        const idBatch = ids.slice(i, i + batchSize)
+        const { results } = await db()
+          .prepare(
+            `SELECT ${projection.map((c) => `"${c}"`).join(', ')} FROM "${target}" ` +
+              `WHERE "id" IN (${idBatch.map(() => '?').join(', ')})`,
+          )
+          .bind(...idBatch)
+          .all<Record<string, unknown>>()
+
+        for (const related of results ?? []) {
+          const decoded = decodeRow(target, { ...related })
+          const id = decoded.id
+          if (!cols.includes('id')) delete decoded.id
+          byId.set(id, decoded)
+        }
       }
 
       for (const row of rows) row[embed.alias] = byId.get(row[fk]) ?? null
