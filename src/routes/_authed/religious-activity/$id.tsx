@@ -49,20 +49,27 @@ const getActivityDetail = createServerFn({ method: 'GET' })
             throw new Error('Religious activity not found')
         }
 
-        // Fetch assigned trainers
+        // Fetch assigned trainers. Chunk the IN (...) list so it stays within
+        // D1's bound-parameter limit — a session can have more participants
+        // than the org has trainers under that limit (see the same pattern in
+        // dormitory/index.tsx's bulk checkout).
         let assignedTrainers: Trainer[] = []
 
         if (activity.participants && activity.participants.length > 0) {
-            const { data: trainers, error: trainersError } = await supabase
-                .from('trainers')
-                .select('id, name, rank, specialization, status')
-                .in('id', activity.participants)
-                .eq('status', 'active')
-                .order('name', { ascending: true })
+            for (let i = 0; i < activity.participants.length; i += 90) {
+                const chunk = activity.participants.slice(i, i + 90)
+                const { data: trainers, error: trainersError } = await supabase
+                    .from('trainers')
+                    .select('id, name, rank, specialization, status')
+                    .in('id', chunk)
+                    .eq('status', 'active')
 
-            if (!trainersError && trainers) {
-                assignedTrainers = trainers
+                if (trainersError) {
+                    throw new Error(`Failed to load assigned trainers: ${trainersError.message}`)
+                }
+                assignedTrainers.push(...(trainers || []))
             }
+            assignedTrainers.sort((a, b) => a.name.localeCompare(b.name))
         }
 
         return {

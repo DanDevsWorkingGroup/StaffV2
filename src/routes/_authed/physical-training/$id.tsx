@@ -50,20 +50,27 @@ const getSessionDetail = createServerFn({ method: 'GET' })
             throw new Error('Physical training session not found')
         }
 
-        // Fetch assigned trainers
+        // Fetch assigned trainers. Chunk the IN (...) list so it stays within
+        // D1's bound-parameter limit — a session can have more participants
+        // than the org has trainers under that limit (see the same pattern in
+        // dormitory/index.tsx's bulk checkout).
         let assignedTrainers: Trainer[] = []
 
         if (session.participants && session.participants.length > 0) {
-            const { data: trainers, error: trainersError } = await supabase
-                .from('trainers')
-                .select('id, name, rank, specialization, status')
-                .in('id', session.participants)
-                .eq('status', 'active')
-                .order('name', { ascending: true })
+            for (let i = 0; i < session.participants.length; i += 90) {
+                const chunk = session.participants.slice(i, i + 90)
+                const { data: trainers, error: trainersError } = await supabase
+                    .from('trainers')
+                    .select('id, name, rank, specialization, status')
+                    .in('id', chunk)
+                    .eq('status', 'active')
 
-            if (!trainersError && trainers) {
-                assignedTrainers = trainers
+                if (trainersError) {
+                    throw new Error(`Failed to load assigned trainers: ${trainersError.message}`)
+                }
+                assignedTrainers.push(...(trainers || []))
             }
+            assignedTrainers.sort((a, b) => a.name.localeCompare(b.name))
         }
 
         return {
