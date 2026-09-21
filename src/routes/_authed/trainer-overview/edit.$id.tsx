@@ -8,6 +8,9 @@ import { useState } from 'react'
 const getTrainerData = createServerFn({ method: 'GET' })
   .inputValidator((data: { trainerId: string }) => data)
   .handler(async ({ data }) => {
+    // Only an ADMIN may load a trainer record for editing (matches updateTrainer below).
+    checkRole(await resolveUserRole(), ['ADMIN'])
+
     const supabase = getSupabaseServerClient()
 
     const trainerId = parseInt(data.trainerId)

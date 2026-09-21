@@ -1,11 +1,15 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
+import { resolveUserRole, checkRole, canAccessOverviewClient } from '~/middleware/rbac'
 
 // Server function to fetch trainer profile
 const getTrainerProfile = createServerFn({ method: 'GET' })
   .inputValidator((data: { trainerId: string }) => data)
   .handler(async ({ data }) => {
+    // Only ADMIN/COORDINATOR may view a trainer's profile (matches the directory guard).
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
     
     const trainerId = parseInt(data.trainerId)
@@ -102,6 +106,11 @@ const getTrainerProfile = createServerFn({ method: 'GET' })
   })
 
 export const Route = createFileRoute('/_authed/trainer-overview/$id')({
+  beforeLoad: ({ context }) => {
+    if (!context.user?.role || !canAccessOverviewClient(context.user.role)) {
+      throw new Error('Unauthorized Access: you do not have permission to view trainer profiles')
+    }
+  },
   loader: async ({ params }) => await getTrainerProfile({ data: { trainerId: params.id } }),
   component: TrainerProfilePage,
 })
