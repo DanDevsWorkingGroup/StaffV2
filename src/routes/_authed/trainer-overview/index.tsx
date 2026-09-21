@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
 import { getSupabaseServerClient } from '~/utils/supabase'
-import { resolveUserRole, checkRole } from '~/middleware/rbac'
+import { resolveUserRole, checkRole, canAccessOverviewClient } from '~/middleware/rbac'
 import { useRef, useState } from 'react'
 import { DataList, Modal, MonthCalendar, type CalItem, type Column } from '~/components/mobile'
 
@@ -9,6 +9,10 @@ import { DataList, Modal, MonthCalendar, type CalItem, type Column } from '~/com
 const getTrainerOverviewData = createServerFn({ method: 'GET' })
   .inputValidator((data: { trainerId?: number; month: number; year: number }) => data)
   .handler(async ({ data }) => {
+    // Only ADMIN/COORDINATOR may see the full trainer roster + overview data;
+    // specialized coordinators and trainers must not (matches canAccessOverviewClient).
+    checkRole(await resolveUserRole(), ['ADMIN', 'COORDINATOR'])
+
     const supabase = getSupabaseServerClient()
 
     // Get all trainers with role info
@@ -175,9 +179,9 @@ const createTrainer = createServerFn({ method: 'POST' })
 
 export const Route = createFileRoute('/_authed/trainer-overview/')({
   beforeLoad: ({ context }) => {
-    // Check if user exists and has TRAINER role
-    if (context.user?.role === 'TRAINER') {
-      throw new Error('Unauthorized Access: Trainers cannot access overview')
+    // Only ADMIN/COORDINATOR may access overview (specialized coordinators excluded too)
+    if (!context.user?.role || !canAccessOverviewClient(context.user.role)) {
+      throw new Error('Unauthorized Access: you do not have permission to view trainer overview')
     }
   },
   loader: async () => {
